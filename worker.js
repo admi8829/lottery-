@@ -45,7 +45,7 @@ export default {
     ).bind(userId, phone, fullName, username).run();
 
     // 2. Channel Join Buttons
-    const channelLink = "https://t.me/YourChannelUsername"; // እዚህ ጋር የቻናልህን ሊንክ አስገባ
+    const channelLink = "https://t.me/SmartX_Ethio"; // እዚህ ጋር የቻናልህን ሊንክ አስገባ
     const joinKeyboard = Markup.inlineKeyboard([
       [Markup.button.url('📢 Join Our Channel', channelLink)],
       [Markup.button.callback('✅ Joined - Continue', 'check_join')]
@@ -70,7 +70,7 @@ To complete your access and start using the bot, please <b>Join our Official Cha
 });
 
   bot.action('check_join', async (ctx) => {
-  const channelId = "@YourChannelUsername"; // የቻናልህ Username (@ ምልክት እንዳይረሳ)
+  const channelId = "@SmartX_Ethio"; // የቻናልህ Username (@ ምልክት እንዳይረሳ)
   const userId = ctx.from.id;
 
   try {
