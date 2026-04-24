@@ -1,6 +1,6 @@
 {
   "name": "lottery-telegram-bot",
-  "main": "src/index.js",
+  "main": "worker.js",
   "devDependencies": {
     "wrangler": "^3.0.0"
   },
