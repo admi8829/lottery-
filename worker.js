@@ -37,8 +37,8 @@ const requestPhoneKeyboard = Markup.keyboard([
       }
     });
 
-    // ስልክ ሲላክ
-    bot.on('contact', async (ctx) => {
+    // ስልክ ሲላ
+bot.on('contact', async (ctx) => {
   try {
     if (!ctx.message || !ctx.message.contact) {
       return ctx.reply("<b>⚠️ Error</b>\nPlease use the button to share your contact.", { parse_mode: 'HTML' });
@@ -49,19 +49,31 @@ const requestPhoneKeyboard = Markup.keyboard([
     const phone = ctx.message.contact.phone_number;
     const username = ctx.from.username || "N/A";
 
-    // 1. Save to Database
+    // 1. መጀመሪያ ተጠቃሚው ዳታቤዝ ውስጥ መኖሩን ቼክ እናደርጋለን
+    const existingUser = await env.DB.prepare("SELECT user_id FROM users WHERE user_id = ?")
+      .bind(userId)
+      .first();
+
+    // 2. ዳታውን እናድሳለን (INSERT OR REPLACE)
     await env.DB.prepare(
       "INSERT OR REPLACE INTO users (user_id, phone, name, username) VALUES (?, ?, ?, ?)"
     ).bind(userId, phone, fullName, username).run();
 
-    // 2. Channel Join Buttons
-    const channelLink = "https://t.me/SmartX_Ethio"; // እዚህ ጋር የቻናልህን ሊንክ አስገባ
+    // 3. ተጠቃሚው ቀድሞ የነበረ ከሆነ "Updated" የሚል መልዕክት ብቻ እንልካለን
+    if (existingUser) {
+      return ctx.reply(`<b>✅ Profile Updated Successfully!</b>\n\nYour information has been refreshed, <b>${fullName}</b>.`, {
+        parse_mode: 'HTML',
+        ...mainKeyboard // ዋናውን የሪፕላይ በተን ይመልስለታል
+      });
+    }
+
+    // 4. ተጠቃሚው አዲስ ከሆነ (ለመጀመሪያ ጊዜ ሲመዘገብ) ቻናል እንዲቀላቀል እንጠይቃለን
+    const channelLink = "https://t.me/SmartX_Ethio"; 
     const joinKeyboard = Markup.inlineKeyboard([
       [Markup.button.url('📢 Join Our Channel', channelLink)],
       [Markup.button.callback('✅ Joined - Continue', 'check_join')]
     ]);
 
-    // 3. Success & Prompt to Join
     const welcomeMessage = `
 <b>Registration Successful! ✅</b>
 ━━━━━━━━━━━━━━━━━━
@@ -78,6 +90,7 @@ To complete your access and start using the bot, please <b>Join our Official Cha
     return ctx.reply(`<b>❌ Error:</b> <code>${e.message}</code>`, { parse_mode: 'HTML' });
   }
 });
+    
 
 bot.hears('⚙️ Settings', async (ctx) => {
   const settingsKeyboard = Markup.inlineKeyboard([
