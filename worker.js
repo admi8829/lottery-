@@ -30,24 +30,58 @@ export default {
     // ስልክ ሲላክ
     bot.on('contact', async (ctx) => {
   try {
-    // መጀመሪያ contact መኖሩን እናረጋግጥ
+    // 1. Check if contact exists
     if (!ctx.message || !ctx.message.contact) {
-      return ctx.reply("እባክዎ ስልክ ቁጥርዎን ለመላክ '📲 ስልክ ቁጥሬን ላክ' የሚለውን አዝራር ይጠቀሙ።");
+      return ctx.reply(
+        "<b>⚠️ Error</b>\nPlease use the button <b>'📲 ስልክ ቁጥሬን ላክ'</b> to share your contact.",
+        { parse_mode: 'HTML' }
+      );
     }
 
-    const { id, first_name } = ctx.from;
-    const phone = ctx.message.contact.phone_number; // እዚህ ጋር 'message.contact' ማለታችንን እርግጠኛ እንሁን
+    // 2. Extract data
+    const userId = ctx.from.id;
+    const firstName = ctx.from.first_name;
+    const lastName = ctx.from.last_name || ""; // Optional
+    const fullName = `${firstName} ${lastName}`.trim();
+    const phone = ctx.message.contact.phone_number;
+    const username = ctx.from.username ? `@${ctx.from.username}` : "<i>Not set</i>";
 
-    await env.DB.prepare("INSERT OR REPLACE INTO users (user_id, phone, name) VALUES (?, ?, ?)")
-      .bind(id, phone, first_name)
-      .run();
+    // 3. Insert into Database (Updated to include username)
+    // Make sure your table has 'username' column
+    await env.DB.prepare(
+      "INSERT OR REPLACE INTO users (user_id, phone, name, username) VALUES (?, ?, ?, ?)"
+    )
+    .bind(userId, phone, fullName, ctx.from.username || "N/A")
+    .run();
 
-    return ctx.reply("ምዝገባው ተሳክቷል! ✅", mainKeyboard);
+    // 4. Success Message with HTML Styling
+    const welcomeMessage = `
+<b>Registration Successful! ✅</b>
+
+<b>👤 Profile Information:</b>
+━━━━━━━━━━━━━━━━━━
+<b>Name:</b> ${fullName}
+<b>Phone:</b> <code>${phone}</code>
+<b>Username:</b> ${username}
+<b>User ID:</b> <code>${userId}</code>
+━━━━━━━━━━━━━━━━━━
+
+<i>You can now access all features of the Lottery Bot. Good luck! 🎟</i>`;
+
+    return ctx.reply(welcomeMessage, {
+      parse_mode: 'HTML',
+      ...mainKeyboard // This brings up your main menu buttons
+    });
+
   } catch (e) {
     console.error("Database error:", e.message);
-    return ctx.reply("መመዝገብ አልተቻለም፡ " + e.message);
+    return ctx.reply(
+      `<b>❌ Registration Failed</b>\nError: <code>${e.message}</code>`,
+      { parse_mode: 'HTML' }
+    );
   }
 });
+        
       
 
     // የዌብሁክ ሎጂክ
