@@ -1,4 +1,4 @@
-name = "lottery"
+name = "lotterye"
 main = "worker.js"
 compatibility_date = "2024-09-23" # ቀኑን ወደዚህ ማሳደግ Node.js እንዲያውቅ ያደርገዋል
 compatibility_flags = [ "nodejs_compat" ]
