@@ -36,7 +36,7 @@ export default {
           return ctx.reply(`እንኳን ደህና መጡ ${ctx.from.first_name}! ምን ላግዝዎት?`, mainKeyboard);
         } else {
           return ctx.reply(
-            `ሰላም ${ctx.from.first_name} 👋! ለመቀጠል እባክዎ "ስልክ ቁጥር አጋራ" የሚለውን ቁልፍ ይጫኑ።`,
+            `ሰላም ${ctx.from.first_name} 👋! ለመቀጠል  "ስልክ ቁጥር አጋራ" የሚለውን ቁልፍ ይጫኑ።`,
             requestPhoneKeyboard
           );
         }
