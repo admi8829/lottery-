@@ -141,41 +141,26 @@ bot.action('back_to_settings', async (ctx) => {
     await ctx.answerCbQuery("Error verifying membership. Make sure the bot is Admin in the channel.", { show_alert: true });
   }
 });
-    
-    // ቋንቋዎችን ለማሳየት
-bot.action('show_languages', (ctx) => {
-  const langKeyboard = Markup.inlineKeyboard([
-    [Markup.button.callback('አማርኛ 🇪🇹', 'set_lang_Amharic')],
-    [Markup.button.callback('English 🇺🇸', 'set_lang_English')],
-    [Markup.button.callback('🔙 Back to Settings', 'back_to_settings')]
-  ]);
-  return ctx.editMessageText("<b>Choose your preferred language:</b>", {
+
+ bot.action('update_profile', (ctx) => {
+  const updateMessage = `
+<b>👤 Update Your Profile</b>
+━━━━━━━━━━━━━━━━━━
+To keep your account secure and ensure you receive your winnings, we need to verify your phone number again.
+
+<b>Instructions:</b>
+Click the button below to share your contact.
+━━━━━━━━━━━━━━━━━━`;
+
+  return ctx.reply(updateMessage, {
     parse_mode: 'HTML',
-    ...langKeyboard
+    ...Markup.keyboard([
+      [Markup.button.contactRequest('📲 Verify & Update My Number')]
+    ]).resize().oneTime()
   });
 });
-
-// ቋንቋውን ዳታቤዝ ላይ ለመቀየር
-const languages = ['Amharic', 'English'];
-languages.forEach(lang => {
-  bot.action(`set_lang_${lang}`, async (ctx) => {
-    try {
-      await env.DB.prepare("UPDATE users SET language = ? WHERE user_id = ?")
-        .bind(lang, ctx.from.id)
-        .run();
-      
-      await ctx.answerCbQuery(`Language changed to ${lang} ✅`);
-      return ctx.editMessageText(`✅ Language successfully updated to <b>${lang}</b>!`, {
-        parse_mode: 'HTML',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Back', 'back_to_settings')]])
-      });
-    } catch (e) {
-      return ctx.answerCbQuery("Error updating language.");
-    }
-  });
-});
-
     
+    //delete my information. 
  bot.action('confirm_delete', (ctx) => {
   return ctx.editMessageText("<b>⚠️ Are you sure?</b>\nThis will permanently delete your registration and wallet data.", {
     parse_mode: 'HTML',
