@@ -79,6 +79,27 @@ To complete your access and start using the bot, please <b>Join our Official Cha
   }
 });
 
+bot.hears('⚙️ Settings', async (ctx) => {
+  const userId = ctx.from.id;
+  
+  // ከዳታቤዝ የተጠቃሚውን ቋንቋ ማግኘት
+  const user = await env.DB.prepare("SELECT language FROM users WHERE user_id = ?").bind(userId).first();
+  const currentLang = user ? user.language : 'Amharic';
+
+  const settingsKeyboard = Markup.inlineKeyboard([
+    [Markup.button.callback(`🌐 Language: ${currentLang}`, 'show_languages')],
+    [Markup.button.callback('💳 Payment Methods', 'show_payments')],
+    [Markup.button.callback('👤 Update Profile', 'update_profile')],
+    [Markup.button.callback('❌ Delete My Account', 'confirm_delete')]
+  ]);
+
+  return ctx.reply(`<b>⚙️ Settings Menu</b>\n\nYour current language is set to: <b>${currentLang}</b>\nSelect an option to customize your experience:`, {
+    parse_mode: 'HTML',
+    ...settingsKeyboard
+  });
+});
+    
+
   bot.action('check_join', async (ctx) => {
   const channelId = "@SmartX_Ethio"; // የቻናልህ Username (@ ምልክት እንዳይረሳ)
   const userId = ctx.from.id;
