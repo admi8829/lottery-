@@ -17,38 +17,43 @@ export default {
     ]).resize();
 
     // --- Command Handlers ---
-    bot.start((ctx) => {
-      return ctx.reply(
-        `ሰላም ${ctx.from.first_name} 👋! ወደ ዕጣ ማውጫ ቦት እንኳን በደህና መጡ።`,
-        mainKeyboard
-      );
-    });
+    bot.start(async (ctx) => {
+  return ctx.reply(
+    `ሰላም ${ctx.from.first_name} 👋! ለመቀጠል እባክዎ ስልክ ቁጥርዎን ያጋሩ።`,
+    Markup.keyboard([
+      [Markup.button.contactRequest('📲 ስልክ ቁጥር አጋራ')]
+    ]).resize().oneTime()
+  );
+});
+    
 
     // --- Button Actions ---
-    bot.hears('🎟 አዲስ ticket ለመቁረጥ', (ctx) => {
-      ctx.reply('እባክዎ የቲኬት መግዣ መረጃዎችን ይሙሉ...');
-    });
+    bot.on('contact', async (ctx) => {
+  const userId = ctx.from.id;
+  const phoneNumber = ctx.contact.phone_number;
+  const firstName = ctx.from.first_name;
 
-    bot.hears('🌐 Language', (ctx) => {
-      ctx.reply('እባክዎ ቋንቋ ይምረጡ / Please choose your language:', 
-        Markup.inlineKeyboard([
-          [Markup.button.callback('አማርኛ', 'lang_am'), Markup.button.callback('English', 'lang_en')]
-        ])
-      );
-    });
+  try {
+    // D1 Database ላይ መመዝገብ (Table ስም 'users' እንደሆነ በማሰብ)
+    await env.DB.prepare(
+      "INSERT OR REPLACE INTO users (id, name, phone) VALUES (?, ?, ?)"
+    ).bind(userId, firstName, phoneNumber).run();
 
-    bot.hears('❓ Help', (ctx) => {
-      ctx.reply('ይህ ቦት ዕጣዎችን ለመቁረጥና ውጤት ለማየት ይረዳዎታል። ማንኛውም ጥያቄ ካለዎት @Admin ን ያነጋግሩ።');
-    });
+    // ምዝገባው ካለቀ በኋላ ዋናውን ሜኑ አሳይ
+    const mainKeyboard = Markup.keyboard([
+      ['🎟 አዲስ ticket ለመቁረጥ'],
+      ['🌐 Language', '❓ Help'],
+      ['👤 My Info', '🔗 Invite Friends']
+    ]).resize();
 
-    bot.hears('👤 My Info', (ctx) => {
-      ctx.reply(`የእርስዎ መረጃ:\n🆔 ID: ${ctx.from.id}\n👤 ስም: ${ctx.from.first_name}`);
-    });
-
-    bot.hears('🔗 Invite Friends', (ctx) => {
-      const inviteLink = `https://t.me/${ctx.botInfo.username}?start=${ctx.from.id}`;
-      ctx.reply(`ይህንን ሊንክ ለጓደኞችዎ በመላክ ይጋብዙ:\n${inviteLink}`);
-    });
+    return ctx.reply("እናመሰግናለን! ስልክዎ ተመዝግቧል። አሁን መጠቀም ይችላሉ።", mainKeyboard);
+    
+  } catch (e) {
+    console.error("DB Error:", e);
+    return ctx.reply("ይቅርታ፣ መረጃዎን መመዝገብ አልቻልንም። እባክዎ ቆይተው ይሞክሩ።");
+  }
+});
+    
 
     // Webhook handling logic
     try {
