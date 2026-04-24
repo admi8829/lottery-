@@ -1,10 +1,10 @@
 name = "lotterye"
 main = "worker.js"
-compatibility_date = "2024-09-23" # ቀኑን ወደዚህ ማሳደግ Node.js እንዲያውቅ ያደርገዋል
+compatibility_date = "2024-09-23"
 compatibility_flags = [ "nodejs_compat" ]
 
 [vars]
-# BOT_TOKEN በ Cloudflare Dashboard ላይ ይሞላል
+# BOT_TOKEN በ Cloudflare Dashboard (Settings > Variables) ላይ መሞላቱን አረጋግጥ
 
 [[d1_databases]]
 binding = "DB"
