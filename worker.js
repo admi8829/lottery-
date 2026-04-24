@@ -9,52 +9,47 @@ export default {
     // BOT_TOKEN በ Cloudflare Dashboard ወይም wrangler.toml ላይ መገኘት አለበት
     const bot = new Telegraf(env.BOT_TOKEN);
 
-    // --- Keyboard Layout ---
+        // --- Keyboard Layout (ይህ ለበኋላ እንዲሆን ከላይ ይቆይ) ---
     const mainKeyboard = Markup.keyboard([
       ['🎟 አዲስ ticket ለመቁረጥ'],
       ['🌐 Language', '❓ Help'],
       ['👤 My Info', '🔗 Invite Friends']
     ]).resize();
 
-    // --- Command Handlers ---
+    // 1. መጀመሪያ /start ሲባል ስልክ እንዲያጋራ መጠየቂያ
     bot.start(async (ctx) => {
-  return ctx.reply(
-    `ሰላም ${ctx.from.first_name} 👋! ለመቀጠል እባክዎ ስልክ ቁጥርዎን ያጋሩ።`,
-    Markup.keyboard([
-      [Markup.button.contactRequest('📲 ስልክ ቁጥር አጋራ')]
-    ]).resize().oneTime()
-  );
-});
-    
+      return ctx.reply(
+        `ሰላም ${ctx.from.first_name} 👋! ወደ ዕጣ ማውጫ ቦት እንኳን በደህና መጡ። ለመቀጠል እባክዎ ስልክ ቁጥርዎን ያጋሩ።`,
+        Markup.keyboard([
+          [Markup.button.contactRequest('📲 ስልክ ቁጥር አጋራ')]
+        ]).resize().oneTime()
+      );
+    });
 
-    // --- Button Actions ---
+    // 2. ተጠቃሚው ስልኩን ሲልክ DB ላይ መመዝገብና ዋናውን ሜኑ መክፈት
     bot.on('contact', async (ctx) => {
-  const userId = ctx.from.id;
-  const phoneNumber = ctx.contact.phone_number;
-  const firstName = ctx.from.first_name;
+      const userId = ctx.from.id;
+      const firstName = ctx.from.first_name;
+      const phoneNumber = ctx.contact.phone_number;
 
-  try {
-    // D1 Database ላይ መመዝገብ (Table ስም 'users' እንደሆነ በማሰብ)
-    await env.DB.prepare(
-      "INSERT OR REPLACE INTO users (id, name, phone) VALUES (?, ?, ?)"
-    ).bind(userId, firstName, phoneNumber).run();
+      try {
+        // D1 Database ላይ መመዝገቢያ (ከዚህ በፊት ዳታቤዙን dashboard ላይ connect ማድረጋችንን አንርሳ)
+        await env.DB.prepare(
+          "INSERT OR REPLACE INTO users (id, name, phone) VALUES (?, ?, ?)"
+        ).bind(userId, firstName, phoneNumber).run();
 
-    // ምዝገባው ካለቀ በኋላ ዋናውን ሜኑ አሳይ
-    const mainKeyboard = Markup.keyboard([
-      ['🎟 አዲስ ticket ለመቁረጥ'],
-      ['🌐 Language', '❓ Help'],
-      ['👤 My Info', '🔗 Invite Friends']
-    ]).resize();
-
-    return ctx.reply("እናመሰግናለን! ስልክዎ ተመዝግቧል። አሁን መጠቀም ይችላሉ።", mainKeyboard);
+        // ምዝገባው ሲሳካ ወደ ዋናው ሜኑ ይለወጣል
+        return ctx.reply(
+          "በአግባቡ ተመዝግበዋል! አሁን መጠቀም ይችላሉ።",
+          mainKeyboard
+        );
+      } catch (e) {
+        console.error("DB Error:", e.message);
+        return ctx.reply("ይቅርታ፣ መረጃዎን መመዝገብ አልቻልንም። እባክዎ ትንሽ ቆይተው ይሞክሩ።");
+      }
+    });
+      
     
-  } catch (e) {
-    console.error("DB Error:", e);
-    return ctx.reply("ይቅርታ፣ መረጃዎን መመዝገብ አልቻልንም። እባክዎ ቆይተው ይሞክሩ።");
-  }
-});
-    
-
     // Webhook handling logic
     try {
       const body = await request.json();
