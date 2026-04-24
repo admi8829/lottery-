@@ -1,4 +1,7 @@
-name = "lottery-telegram-bot"
+name = "lottery"
 main = "worker.js"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-09-23" # ቀኑን ወደዚህ ማሳደግ Node.js እንዲያውቅ ያደርገዋል
 compatibility_flags = [ "nodejs_compat" ]
+
+[vars]
+# BOT_TOKEN በ Cloudflare Dashboard ላይ ይሞላል
