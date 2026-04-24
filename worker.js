@@ -80,24 +80,43 @@ To complete your access and start using the bot, please <b>Join our Official Cha
 });
 
 bot.hears('⚙️ Settings', async (ctx) => {
-  const userId = ctx.from.id;
-  
-  // ከዳታቤዝ የተጠቃሚውን ቋንቋ ማግኘት
-  const user = await env.DB.prepare("SELECT language FROM users WHERE user_id = ?").bind(userId).first();
-  const currentLang = user ? user.language : 'Amharic';
-
   const settingsKeyboard = Markup.inlineKeyboard([
-    [Markup.button.callback(`🌐 Language: ${currentLang}`, 'show_languages')],
-    [Markup.button.callback('💳 Payment Methods', 'show_payments')],
     [Markup.button.callback('👤 Update Profile', 'update_profile')],
+    [Markup.button.callback('💳 Payment Methods', 'show_payments')],
+    [Markup.button.callback('👨‍💻 Contact Support', 'contact_support')],
     [Markup.button.callback('❌ Delete My Account', 'confirm_delete')]
   ]);
 
-  return ctx.reply(`<b>⚙️ Settings Menu</b>\n\nYour current language is set to: <b>${currentLang}</b>\nSelect an option to customize your experience:`, {
+  const settingsText = `
+<b>⚙️ Settings Menu</b>
+
+Manage your account details and payment methods below.
+━━━━━━━━━━━━━━━━━━
+<b>Status:</b> 🟢 Active
+<b>Language:</b> English
+━━━━━━━━━━━━━━━━━━`;
+
+  return ctx.reply(settingsText, {
     parse_mode: 'HTML',
     ...settingsKeyboard
   });
 });
+
+// Back to settings action (ለ Inline Buttons መልሶ መመለሻ እንዲሆን)
+bot.action('back_to_settings', async (ctx) => {
+  const settingsKeyboard = Markup.inlineKeyboard([
+    [Markup.button.callback('👤 Update Profile', 'update_profile')],
+    [Markup.button.callback('💳 Payment Methods', 'show_payments')],
+    [Markup.button.callback('👨‍💻 Contact Support', 'contact_support')],
+    [Markup.button.callback('❌ Delete My Account', 'confirm_delete')]
+  ]);
+
+  return ctx.editMessageText("<b>⚙️ Settings Menu</b>\nSelect an option to manage your account:", {
+    parse_mode: 'HTML',
+    ...settingsKeyboard
+  });
+});
+    
     
 
   bot.action('check_join', async (ctx) => {
