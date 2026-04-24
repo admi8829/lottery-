@@ -1,0 +1,11 @@
+{
+  "name": "lottery-telegram-bot",
+  "main": "src/index.js",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  },
+  "dependencies": {
+    "telegraf": "^4.15.3"
+  }
+}
+
