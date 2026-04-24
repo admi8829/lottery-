@@ -4,9 +4,11 @@ compatibility_date = "2024-09-23"
 compatibility_flags = [ "nodejs_compat" ]
 
 [vars]
-# BOT_TOKEN በ Cloudflare Dashboard (Settings > Variables) ላይ መሞላቱን አረጋግጥ
+# BOT_TOKEN በ Dashboard ላይ ካልሞላህ እዚህ ጋር መጨመር ትችላለህ
+# BOT_TOKEN = "የአንተ_ቶክን_እዚህ_ይግባ"
 
 [[d1_databases]]
-binding = "DB"
+binding = "DB"  # በኮዱ ውስጥ env.DB ያልነውን ያመለክታል
 database_name = "lottery_db"
 database_id = "7b571ad9-7266-4b39-b77f-12f61e1600c4"
+
