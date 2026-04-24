@@ -26,17 +26,32 @@ export default {
     };
 
     // --- Command Handlers ---
-    bot.start(async (ctx) => {
-      const isRegistered = await checkUser(ctx.from.id);
-      if (isRegistered) {
-        return ctx.reply(`እንኳን ደህና መጡ ${ctx.from.first_name}! ምን ላግዝዎት?`, mainKeyboard);
-      } else {
-        return ctx.reply(
-          `ሰላም ${ctx.from.first_name} 👋! ወደ ዕጣ ማውጫ ቦት እንኳን በደህና መጡ። ለመቀጠል እባክዎ ስልክ ቁጥርዎን ያጋሩ።`,
-          requestPhoneKeyboard
-        );
+        bot.start(async (ctx) => {
+      try {
+        const userId = ctx.from.id;
+        
+        // ዳታቤዙን ቼክ እናደርጋለን
+        const user = await env.DB.prepare("SELECT id FROM users WHERE id = ?")
+          .bind(userId)
+          .first();
+
+        if (user) {
+          // ተጠቃሚው ቀድሞ ካለ ዋናውን ሜኑ አሳይ
+          return ctx.reply(`እንኳን ደህና መጡ ${ctx.from.first_name}! ድጋሚ በማየታችን ደስ ብሎናል።`, mainKeyboard);
+        } else {
+          // ተጠቃሚው ከሌለ ስልክ ቁጥር ጠይቅ
+          return ctx.reply(
+            `ሰላም ${ctx.from.first_name} 👋! ለመቀጠል እባክዎ ስልክ ቁጥርዎን ያጋሩ።`,
+            requestPhoneKeyboard
+          );
+        }
+      } catch (e) {
+        // ማንኛውም ስህተት ካለ እዚህ ይያዛል (ለምሳሌ Table ካልተፈጠረ)
+        console.error("Start Error:", e.message);
+        return ctx.reply("የቴክኒክ ችግር አጋጥሟል። እባክዎ ትንሽ ቆይተው ይሞክሩ። ስህተት፡ " + e.message);
       }
     });
+    
 
     // --- Contact Handler (ስልክ ቁጥር መቀበያ) ---
     bot.on('contact', async (ctx) => {
