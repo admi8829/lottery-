@@ -30,57 +30,68 @@ export default {
     // ስልክ ሲላክ
     bot.on('contact', async (ctx) => {
   try {
-    // 1. Check if contact exists
     if (!ctx.message || !ctx.message.contact) {
-      return ctx.reply(
-        "<b>⚠️ Error</b>\nPlease use the button <b>'📲 ስልክ ቁጥሬን ላክ'</b> to share your contact.",
-        { parse_mode: 'HTML' }
-      );
+      return ctx.reply("<b>⚠️ Error</b>\nPlease use the button to share your contact.", { parse_mode: 'HTML' });
     }
 
-    // 2. Extract data
     const userId = ctx.from.id;
-    const firstName = ctx.from.first_name;
-    const lastName = ctx.from.last_name || ""; // Optional
-    const fullName = `${firstName} ${lastName}`.trim();
+    const fullName = `${ctx.from.first_name} ${ctx.from.last_name || ""}`.trim();
     const phone = ctx.message.contact.phone_number;
-    const username = ctx.from.username ? `@${ctx.from.username}` : "<i>Not set</i>";
+    const username = ctx.from.username || "N/A";
 
-    // 3. Insert into Database (Updated to include username)
-    // Make sure your table has 'username' column
+    // 1. Save to Database
     await env.DB.prepare(
       "INSERT OR REPLACE INTO users (user_id, phone, name, username) VALUES (?, ?, ?, ?)"
-    )
-    .bind(userId, phone, fullName, ctx.from.username || "N/A")
-    .run();
+    ).bind(userId, phone, fullName, username).run();
 
-    // 4. Success Message with HTML Styling
+    // 2. Channel Join Buttons
+    const channelLink = "https://t.me/YourChannelUsername"; // እዚህ ጋር የቻናልህን ሊንክ አስገባ
+    const joinKeyboard = Markup.inlineKeyboard([
+      [Markup.button.url('📢 Join Our Channel', channelLink)],
+      [Markup.button.callback('✅ Joined - Continue', 'check_join')]
+    ]);
+
+    // 3. Success & Prompt to Join
     const welcomeMessage = `
 <b>Registration Successful! ✅</b>
-
-<b>👤 Profile Information:</b>
 ━━━━━━━━━━━━━━━━━━
-<b>Name:</b> ${fullName}
-<b>Phone:</b> <code>${phone}</code>
-<b>Username:</b> ${username}
-<b>User ID:</b> <code>${userId}</code>
-━━━━━━━━━━━━━━━━━━
-
-<i>You can now access all features of the Lottery Bot. Good luck! 🎟</i>`;
+<b>Welcome, ${fullName}!</b>
+To complete your access and start using the bot, please <b>Join our Official Channel</b> below.
+━━━━━━━━━━━━━━━━━━`;
 
     return ctx.reply(welcomeMessage, {
       parse_mode: 'HTML',
-      ...mainKeyboard // This brings up your main menu buttons
+      ...joinKeyboard
     });
 
   } catch (e) {
-    console.error("Database error:", e.message);
-    return ctx.reply(
-      `<b>❌ Registration Failed</b>\nError: <code>${e.message}</code>`,
-      { parse_mode: 'HTML' }
-    );
+    return ctx.reply(`<b>❌ Error:</b> <code>${e.message}</code>`, { parse_mode: 'HTML' });
   }
 });
+
+  bot.action('check_join', async (ctx) => {
+  const channelId = "@YourChannelUsername"; // የቻናልህ Username (@ ምልክት እንዳይረሳ)
+  const userId = ctx.from.id;
+
+  try {
+    const member = await ctx.telegram.getChatMember(channelId, userId);
+    
+    // መቀላቀሉን ማረጋገጫ (status 'member', 'administrator', ወይም 'creator' ከሆነ)
+    if (['member', 'administrator', 'creator'].includes(member.status)) {
+      await ctx.answerCbQuery("Thank you for joining! 🎉");
+      await ctx.deleteMessage(); // የ join መልዕክቱን ለማጥፋት
+      return ctx.reply(
+        "<b>Verification Complete! 🔓</b>\nYou now have full access to the bot.",
+        { parse_mode: 'HTML', ...mainKeyboard }
+      );
+    } else {
+      await ctx.answerCbQuery("❌ You haven't joined the channel yet!", { show_alert: true });
+    }
+  } catch (e) {
+    await ctx.answerCbQuery("Error verifying membership. Make sure the bot is Admin in the channel.", { show_alert: true });
+  }
+});
+    
         
       
 
