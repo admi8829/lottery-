@@ -1,5 +1,3 @@
-import { Telegraf, Markup } from 'telegraf';
-
 export default {
   async fetch(request, env, ctx) {
     // 1. ቦቱን በ Environment Variable መጥራት
