@@ -29,19 +29,26 @@ export default {
 
     // ስልክ ሲላክ
     bot.on('contact', async (ctx) => {
-      try {
-        const { id, first_name } = ctx.from;
-        const phone = ctx.contact.phone_number;
+  try {
+    // መጀመሪያ contact መኖሩን እናረጋግጥ
+    if (!ctx.message || !ctx.message.contact) {
+      return ctx.reply("እባክዎ ስልክ ቁጥርዎን ለመላክ '📲 ስልክ ቁጥሬን ላክ' የሚለውን አዝራር ይጠቀሙ።");
+    }
 
-        await env.DB.prepare("INSERT OR REPLACE INTO users (user_id, phone, name) VALUES (?, ?, ?)")
-          .bind(id, phone, first_name)
-          .run();
+    const { id, first_name } = ctx.from;
+    const phone = ctx.message.contact.phone_number; // እዚህ ጋር 'message.contact' ማለታችንን እርግጠኛ እንሁን
 
-        return ctx.reply("ምዝገባው ተሳክቷል! ✅", mainKeyboard);
-      } catch (e) {
-        return ctx.reply("መመዝገብ አልተቻለም፡ " + e.message);
-      }
-    });
+    await env.DB.prepare("INSERT OR REPLACE INTO users (user_id, phone, name) VALUES (?, ?, ?)")
+      .bind(id, phone, first_name)
+      .run();
+
+    return ctx.reply("ምዝገባው ተሳክቷል! ✅", mainKeyboard);
+  } catch (e) {
+    console.error("Database error:", e.message);
+    return ctx.reply("መመዝገብ አልተቻለም፡ " + e.message);
+  }
+});
+      
 
     // የዌብሁክ ሎጂክ
     if (request.method === 'POST') {
