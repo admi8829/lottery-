@@ -5,65 +5,57 @@ export default {
     const botToken = env.BOT_TOKEN;
     const bot = new Telegraf(botToken);
 
-    // 1. ዋናው ሜኑ (ከምዝገባ በኋላ የሚመጣ)
     const mainKeyboard = Markup.keyboard([
       ['🎟 አዲስ ticket ለመቁረጥ'],
       ['🌐 Language', '❓ Help'],
       ['👤 My Info', '🔗 Invite Friends']
     ]).resize();
 
-    // 2. ስልክ ቁጥር ለመጠየቅ የሚያገለግል አዝራር
     const requestPhoneKeyboard = Markup.keyboard([
       [Markup.button.contactRequest('📲 ስልክ ቁጥሬን ላክ')]
     ]).resize();
 
-    // /start ሲባል የሚመጣ
-    bot.start(async (ctx) => {
-      const firstName = ctx.from.first_name;
+    bot.start((ctx) => {
       return ctx.reply(
-        `ሰላም ${firstName} 👋! ወደ ሎተሪ ቦት እንኳን መጡ።\n\nለመቀጠል እባክዎ "📲 ስልክ ቁጥሬን ላክ" የሚለውን ይጫኑ።`,
+        `ሰላም ${ctx.from.first_name} 👋! ለመቀጠል እባክዎ ስልክ ቁጥርዎን ይላኩ።`,
         requestPhoneKeyboard
       );
     });
 
-    // ስልክ ቁጥር ሲላክ ወደ DB 1 ለማስገባት
     bot.on('contact', async (ctx) => {
       const userId = ctx.from.id;
       const phoneNumber = ctx.contact.phone_number;
       const firstName = ctx.from.first_name;
 
       try {
-        // ወደ Cloudflare D1 Database ዳታውን ያስገባል
-        // ማሳሰቢያ፡ በ dashboard ላይ 'DB' የሚል binding መፍጠር አለብህ
-        await env.DB.prepare(
-          "INSERT OR IGNORE INTO users (user_id, phone, name) VALUES (?, ?, ?)"
+        // 1. መረጃውን ለማስገባት መሞከር
+        const { success } = await env.DB.prepare(
+          "INSERT OR REPLACE INTO users (user_id, phone, name) VALUES (?, ?, ?)"
         ).bind(userId, phoneNumber, firstName).run();
 
-        return ctx.reply(
-          `ምዝገባው ተሳክቷል! ✅\nአሁን መጠቀም ይችላሉ።`,
-          mainKeyboard
-        );
+        if (success) {
+          return ctx.reply("ምዝገባው ተሳክቷል! ✅ አሁን መጠቀም ይችላሉ።", mainKeyboard);
+        } else {
+          // INSERT ባይሳካ ግን Error ባይወረውር
+          return ctx.reply("ይቅርታ፣ መረጃዎ በዳታቤዝ ውስጥ ሊቀመጥ አልቻለም።");
+        }
+
       } catch (err) {
-        return ctx.reply("ይቅርታ፣ መረጃውን መመዝገብ አልቻልንም። እባክዎ ቆይተው ይሞክሩ።");
+        // 2. ሰንጠረዡ (Table) ካልተፈጠረ እዚህ ጋር ስህተቱን ይይዘዋል
+        console.error("DB Error:", err.message);
+        return ctx.reply(`ስህተት ተፈጥሯል፦ ${err.message}\n(ምናልባት Table አልተፈጠረም ይሆናል)`);
       }
     });
 
-    // ሌሎች አዝራሮች
-    bot.hears('🎟 አዲስ ticket ለመቁረጥ', (ctx) => ctx.reply('በቅርብ ቀን ይጀምራል...'));
+    // ሌሎቹ አዝራሮች እዚህ ይቀጥላሉ...
     bot.hears('❓ Help', (ctx) => ctx.reply('አስተዳዳሪውን @Admin ያነጋግሩ።'));
-    bot.hears('👤 My Info', (ctx) => ctx.reply(`ስም፡ ${ctx.from.first_name}\nID: ${ctx.from.id}`));
 
-    // Webhook Logic
     if (request.method === 'POST') {
-      try {
-        const body = await request.json();
-        await bot.handleUpdate(body);
-        return new Response('OK');
-      } catch (err) {
-        return new Response('Error: ' + err.message);
-      }
+      const body = await request.json();
+      await bot.handleUpdate(body);
+      return new Response('OK');
     }
     return new Response('Bot is Online!');
   }
 };
-  
+        
