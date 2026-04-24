@@ -1,61 +1,57 @@
+// Telegrafን በቀጥታ ከኢንተርኔት (esm.sh) እናመጣዋለን - ይህ Build Errorን ያስቀራል
+import { Telegraf, Markup } from 'https://esm.sh/telegraf@4.16.3';
+
 export default {
-  async fetch(request, env) {
-    if (request.method === "POST") {
-      const update = await request.json();
-      const botToken = "7797852298:AAEeBpccwh6SW6zLP_Jo0qX_b0AywdhTyNQ";
-      const apiUrl = `https://api.telegram.org/bot${botToken}`;
+  async fetch(request, env, ctx) {
+    // BOT_TOKENን ከ Dashboard Variables ላይ ያነባል። 
+    // ከሌለ እዚህ ጋር በቀጥታ ቶከኑን መተካት ትችላለህ።
+    const botToken = env.BOT_TOKEN || "7797852298:AAEeBpccwh6SW6zLP_Jo0qX_b0AywdhTyNQ";
+    const bot = new Telegraf(botToken);
 
-      if (update.message) {
-        const chatId = update.message.chat.id;
-        const text = update.message.text;
+    // ዋናው ሜኑ (Buttons)
+    const mainKeyboard = Markup.keyboard([
+      ['🎟 አዲስ ticket ለመቁረጥ'],
+      ['🌐 Language', '❓ Help'],
+      ['👤 My Info', '🔗 Invite Friends']
+    ]).resize();
 
-        // --- /start መልዕክት ---
-        if (text === "/start") {
-          await fetch(`${apiUrl}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chat_id: chatId,
-              text: "ሰላም! ለመመዝገብ እባክዎ ስልክዎን ያጋሩ።",
-              reply_markup: {
-                keyboard: [[{ text: "📲 ስልክ ቁጥር አጋራ", request_contact: true }]],
-                resize_keyboard: true,
-                one_time_keyboard: true
-              }
-            })
-          });
-        }
+    // --- Start Command ---
+    bot.start((ctx) => {
+      return ctx.reply(
+        `ሰላም ${ctx.from.first_name} 👋! እንኳን ወደ ሎተሪ ቦት በደህና መጡ። ከታች ያሉትን ምርጫዎች ይጠቀሙ።`,
+        mainKeyboard
+      );
+    });
 
-        // --- ስልክ ቁጥር ሲላክ (Contact) ---
-        if (update.message.contact) {
-          const phone = update.message.contact.phone_number;
-          const name = update.message.from.first_name;
+    // --- Button Actions ---
+    bot.hears('🎟 አዲስ ticket ለመቁረጥ', (ctx) => {
+      return ctx.reply('🎟 የቲኬት ሽያጭ በቅርብ ቀን ይጀምራል! እባክዎ በትዕግስት ይጠብቁ።');
+    });
 
-          try {
-            await env.DB.prepare("INSERT OR REPLACE INTO users (id, name, phone) VALUES (?, ?, ?)")
-              .bind(chatId, name, phone)
-              .run();
+    bot.hears('❓ Help', (ctx) => {
+      return ctx.reply('እርዳታ ለማግኘት አስተዳዳሪውን @Admin ያነጋግሩ።');
+    });
 
-            await fetch(`${apiUrl}/sendMessage`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chat_id: chatId,
-                text: "✅ በአግባቡ ተመዝግበዋል!",
-                reply_markup: {
-                  keyboard: [["🎟 አዲስ ticket", "👤 My Info"]],
-                  resize_keyboard: true
-                }
-              })
-            });
-          } catch (e) {
-            // ስህተት ካለ እዚህ ይያዛል
-          }
-        }
+    bot.hears('👤 My Info', (ctx) => {
+      return ctx.reply(`የእርስዎ መረጃ፡\n👤 ስም፡ ${ctx.from.first_name}\n🆔 ID: ${ctx.from.id}`);
+    });
+
+    bot.hears('🔗 Invite Friends', (ctx) => {
+      return ctx.reply('ጓደኞችዎን ለመጋበዝ ይህንን ሊንክ ይላኩላቸው፡ https://t.me/your_bot_username');
+    });
+
+    // --- Webhook Handling ---
+    if (request.method === 'POST') {
+      try {
+        const body = await request.json();
+        await bot.handleUpdate(body);
+        return new Response('OK');
+      } catch (err) {
+        return new Response('Error: ' + err.message);
       }
-      return new Response("OK");
     }
-    return new Response("Bot is active");
+
+    return new Response('Bot is running online!');
   }
 };
-        
+          
