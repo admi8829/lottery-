@@ -123,8 +123,61 @@ bot.hears('⚙️ Settings', async (ctx) => {
   }
 });
     
-        
+    // ቋንቋዎችን ለማሳየት
+bot.action('show_languages', (ctx) => {
+  const langKeyboard = Markup.inlineKeyboard([
+    [Markup.button.callback('አማርኛ 🇪🇹', 'set_lang_Amharic')],
+    [Markup.button.callback('English 🇺🇸', 'set_lang_English')],
+    [Markup.button.callback('🔙 Back to Settings', 'back_to_settings')]
+  ]);
+  return ctx.editMessageText("<b>Choose your preferred language:</b>", {
+    parse_mode: 'HTML',
+    ...langKeyboard
+  });
+});
+
+// ቋንቋውን ዳታቤዝ ላይ ለመቀየር
+const languages = ['Amharic', 'English'];
+languages.forEach(lang => {
+  bot.action(`set_lang_${lang}`, async (ctx) => {
+    try {
+      await env.DB.prepare("UPDATE users SET language = ? WHERE user_id = ?")
+        .bind(lang, ctx.from.id)
+        .run();
       
+      await ctx.answerCbQuery(`Language changed to ${lang} ✅`);
+      return ctx.editMessageText(`✅ Language successfully updated to <b>${lang}</b>!`, {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Back', 'back_to_settings')]])
+      });
+    } catch (e) {
+      return ctx.answerCbQuery("Error updating language.");
+    }
+  });
+});
+
+    
+ bot.action('confirm_delete', (ctx) => {
+  return ctx.editMessageText("<b>⚠️ Are you sure?</b>\nThis will permanently delete your registration and wallet data.", {
+    parse_mode: 'HTML',
+    ...Markup.inlineKeyboard([
+      [Markup.button.callback('Yes, Delete everything', 'do_delete')],
+      [Markup.button.callback('No, Cancel', 'back_to_settings')]
+    ])
+  });
+});
+
+bot.action('do_delete', async (ctx) => {
+  await env.DB.prepare("DELETE FROM users WHERE user_id = ?").bind(ctx.from.id).run();
+  await ctx.answerCbQuery("Account Deleted");
+  return ctx.editMessageText("Your account has been deleted. Send /start to register again.");
+});
+
+// ወደ ኋላ መመለሻ (Back Button)
+bot.action('back_to_settings', async (ctx) => {
+  // እዚህ ጋር የ Setting ሜኑን መልሰህ ጥራ (ከላይ ያለውን ኮድ ደግመህ መጠቀም ትችላለህ)
+});
+                               
 
     // የዌብሁክ ሎጂክ
     if (request.method === 'POST') {
