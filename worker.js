@@ -6,10 +6,18 @@ export default {
     
     const bot = new Telegraf(env.BOT_TOKEN);
 
-    // Buttons
-    const mainKeyboard = Markup.keyboard([['🎟 አዲስ ticket ለመቁረጥ'], ['👤 My Info', '❓ Help']]).resize();
-    const requestPhoneKeyboard = Markup.keyboard([[Markup.button.contactRequest('📲 ስልክ ቁጥሬን ላክ')]]).resize();
+    // 1. ዋናው ሜኑ (Main Menu)
+const mainKeyboard = Markup.keyboard([
+  ['🎟 New Ticket'], // ትልቅ ሆኖ መጀመሪያ ላይ እንዲመጣ
+  ['👤 My Info', '⚙️ Settings'], // ጎን ለጎን
+  ['🔗 Invite', '❓ Help'] // ጎን ለጎን
+]).resize();
 
+// 2. ስልክ ቁጥር መጠየቂያ (ይህ እንዳለ ይቆያል)
+const requestPhoneKeyboard = Markup.keyboard([
+  [Markup.button.contactRequest('📲 ስልክ ቁጥሬን ላክ')]
+]).resize();
+    
     // Start Command
     bot.start(async (ctx) => {
       try {
