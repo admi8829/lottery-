@@ -5,50 +5,73 @@ export default {
     const botToken = env.BOT_TOKEN;
     const bot = new Telegraf(botToken);
 
+    // 1. ዋናው ሜኑ
     const mainKeyboard = Markup.keyboard([
       ['🎟 አዲስ ticket ለመቁረጥ'],
       ['🌐 Language', '❓ Help'],
       ['👤 My Info', '🔗 Invite Friends']
     ]).resize();
 
+    // 2. ስልክ ቁጥር መጠየቂያ
     const requestPhoneKeyboard = Markup.keyboard([
       [Markup.button.contactRequest('📲 ስልክ ቁጥሬን ላክ')]
     ]).resize();
 
-    bot.start((ctx) => {
-      return ctx.reply(
-        `ሰላም ${ctx.from.first_name} 👋! ለመቀጠል እባክዎ ስልክ ቁጥርዎን ይላኩ።`,
-        requestPhoneKeyboard
-      );
+    // /start ትዕዛዝ ሲመጣ
+    bot.start(async (ctx) => {
+      const userId = ctx.from.id;
+
+      try {
+        // ዳታቤዝ ውስጥ ተጠቃሚው መኖሩን ቼክ ማድረግ
+        const user = await env.DB.prepare(
+          "SELECT * FROM users WHERE user_id = ?"
+        ).bind(userId).first();
+
+        if (user) {
+          // ተጠቃሚው ቀድሞ ከተመዘገበ በቀጥታ ሜኑውን አሳይ
+          return ctx.reply(
+            `እንኳን ደህና መጡ ${user.name}! ምን ልርዳዎት?`,
+            mainKeyboard
+          );
+        } else {
+          // ተጠቃሚው አዲስ ከሆነ ስልክ እንዲልክ ጠይቅ
+          return ctx.reply(
+            `ሰላም ${ctx.from.first_name} 👋! ወደ ሎተሪ ቦት እንኳን መጡ። ለመቀጠል እባክዎ ስልክ ቁጥርዎን ያጋሩ።`,
+            requestPhoneKeyboard
+          );
+        }
+      } catch (err) {
+        return ctx.reply("የዳታቤዝ ስህተት አጋጥሟል። እባክዎ Table መፈጠሩን ያረጋግጡ።");
+      }
     });
 
+    // ስልክ ቁጥር ሲላክ የሚሰራ
     bot.on('contact', async (ctx) => {
       const userId = ctx.from.id;
       const phoneNumber = ctx.contact.phone_number;
       const firstName = ctx.from.first_name;
 
       try {
-        // 1. መረጃውን ለማስገባት መሞከር
-        const { success } = await env.DB.prepare(
+        await env.DB.prepare(
           "INSERT OR REPLACE INTO users (user_id, phone, name) VALUES (?, ?, ?)"
         ).bind(userId, phoneNumber, firstName).run();
 
-        if (success) {
-          return ctx.reply("ምዝገባው ተሳክቷል! ✅ አሁን መጠቀም ይችላሉ።", mainKeyboard);
-        } else {
-          // INSERT ባይሳካ ግን Error ባይወረውር
-          return ctx.reply("ይቅርታ፣ መረጃዎ በዳታቤዝ ውስጥ ሊቀመጥ አልቻለም።");
-        }
-
+        return ctx.reply("ምዝገባው ተሳክቷል! ✅", mainKeyboard);
       } catch (err) {
-        // 2. ሰንጠረዡ (Table) ካልተፈጠረ እዚህ ጋር ስህተቱን ይይዘዋል
-        console.error("DB Error:", err.message);
-        return ctx.reply(`ስህተት ተፈጥሯል፦ ${err.message}\n(ምናልባት Table አልተፈጠረም ይሆናል)`);
+        return ctx.reply("መረጃውን መመዝገብ አልተቻለም።");
       }
     });
 
-    // ሌሎቹ አዝራሮች እዚህ ይቀጥላሉ...
-    bot.hears('❓ Help', (ctx) => ctx.reply('አስተዳዳሪውን @Admin ያነጋግሩ።'));
+    // ሌሎች አዝራሮች ምላሽ
+    bot.hears('🎟 አዲስ ticket ለመቁረጥ', (ctx) => ctx.reply('በቅርብ ቀን ይጀምራል...'));
+    bot.hears('👤 My Info', async (ctx) => {
+        const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(ctx.from.id).first();
+        if(user) {
+            ctx.reply(`👤 ስም፡ ${user.name}\n📞 ስልክ፡ ${user.phone}\n🆔 ID: ${user.user_id}`);
+        } else {
+            ctx.reply("መረጃዎ አልተገኘም። እባክዎ መጀመሪያ ይመዝገቡ።");
+        }
+    });
 
     if (request.method === 'POST') {
       const body = await request.json();
@@ -58,4 +81,4 @@ export default {
     return new Response('Bot is Online!');
   }
 };
-        
+      
