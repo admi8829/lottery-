@@ -5,3 +5,8 @@ compatibility_flags = [ "nodejs_compat" ]
 
 [vars]
 # BOT_TOKEN በ Cloudflare Dashboard ላይ ይሞላል
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lottery_db"
+database_id = "7b571ad9-7266-4b39-b77f-12f61e1600c4"
