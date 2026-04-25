@@ -8,12 +8,15 @@ export default {
     const CHANNEL_ID = "@SmartX_Ethio"; // ያንተ ቻናል
 
     // --- 1. Keyboards ---
+        // --- 1. Keyboards ---
     const mainKeyboard = Markup.keyboard([
       ['🎟 New Ticket'],
       ['🎟 My Tickets', '⚙️ Settings'],
       ['🏆 Winners', '💰 Wallet & Invite'],
-      ['👥 Invite & Earn', '❓ Help']
+      ['👥 Invite & Earn', '❓ Help'],
+      ['🌐 Language'] // አዲሱ አዝራር እዚህ ተጨምሯል
     ]).resize();
+    
 
     const requestPhoneKeyboard = Markup.keyboard([
       [Markup.button.contactRequest('📲 ስልክ ቁጥሬን ላክ')]
