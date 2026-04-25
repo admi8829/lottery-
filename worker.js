@@ -537,7 +537,55 @@ Select an amount to approve:`;
   });
 });
     
+// 1. የቻናል ግዴታን የሚያረጋግጥ Action
+bot.action('check_join', async (ctx) => {
+  const CHANNEL_ID = "@SmartX_Ethio"; // ያንተ ቻናል ID
+  const userId = ctx.from.id;
 
+  try {
+    // በቴሌግራም ሲስተም ተጠቃሚው አባል መሆኑን ቼክ ማድረግ
+    const member = await ctx.telegram.getChatMember(CHANNEL_ID, userId);
+    const isMember = ['member', 'administrator', 'creator'].includes(member.status);
+
+    if (isMember) {
+      // ✅ አባል ከሆነ - ደስ የሚል አኒሜሽን እና መልዕክት
+      await ctx.answerCbQuery("🎉 እንኳን ደህና መጡ! በትክክል ተቀላቅለዋል።", { show_alert: false });
+      
+      const successMsg = `
+✨ <b>እንኳን ደስ አለዎት!</b> ✨
+━━━━━━━━━━━━━━━━━━
+አሁን የ <b>SmartX Lottery</b> ሙሉ አባል ነዎት።
+ሁሉንም የቦቱን አገልግሎቶች መጠቀም ይችላሉ።
+
+ዕድልዎን ይሞክሩ፣ በሚሊዮኖች የሚቆጠሩ ሽልማቶችን ያሸንፉ! 🏆
+━━━━━━━━━━━━━━━━━━`;
+
+      // ዋናውን ሜኑ አሳይ
+      return ctx.editMessageText(successMsg, {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback('🎟 ቲኬት ቁረጥ', 'buy_ticket_menu')],
+          [Markup.button.callback('💰 Wallet', 'view_wallet')]
+        ])
+      });
+
+    } else {
+      // ❌ አባል ካልሆነ - ማስጠንቀቂያ
+      return ctx.answerCbQuery("⚠️ እባክዎ መጀመሪያ ቻናሉን ይቀላቀሉ!", { show_alert: true });
+    }
+
+  } catch (e) {
+    console.error("Join check error:", e);
+    return ctx.reply("ስህተት ተከስቷል፣ እባክዎ ትንሽ ቆይተው ይሞክሩ።");
+  }
+});
+
+// 2. ተጠቃሚው ገና ሲመጣ የሚላክ ማራኪ ጥሪ (Start ላይ ወይም በየመሃሉ የሚላክ)
+const forceJoinKeyboard = Markup.inlineKeyboard([
+  [Markup.button.url('📢 ቻናላችንን ይቀላቀሉ', 'https://t.me/SmartX_Ethio')],
+  [Markup.button.callback('✅ ተቀላቅያለሁ አረጋግጥ', 'check_join')]
+]);
+    
 // 4. Withdrawal Request
 bot.action('request_withdraw', async (ctx) => {
   await ctx.answerCbQuery();
