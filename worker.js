@@ -550,6 +550,40 @@ Click the button below to share your contact.
   });
 });
 
+    // ማጽደቂያ (Approval)
+bot.action(/^approve_(\d+)_(\d+)$/, async (ctx) => {
+  const targetId = ctx.match[1];
+  const amount = ctx.match[2];
+
+  try {
+    // 1. ዳታቤዝ ላይ ብር መጨመር
+    await env.DB.prepare("UPDATE users SET balance = balance + ? WHERE user_id = ?")
+      .bind(amount, targetId)
+      .run();
+
+    // 2. ለተጠቃሚው ማሳወቅ
+    await ctx.telegram.sendMessage(targetId, `<b>✅ Deposit Approved!</b>\n\nYour wallet has been credited with <b>${amount} ETB</b>. You can now buy tickets!`, { parse_mode: 'HTML' });
+
+    // 3. የአድሚኑን ሜሴጅ ማደስ
+    await ctx.answerCbQuery(`Success: ${amount} ETB added.`);
+    return ctx.editMessageCaption(`✅ <b>Approved:</b> ${amount} ETB added to User <code>${targetId}</code>`, { parse_mode: 'HTML' });
+
+  } catch (e) {
+    return ctx.reply("Database Error: " + e.message);
+  }
+});
+
+// ውድቅ ማድረጊያ (Reject)
+bot.action(/^reject_(\d+)$/, async (ctx) => {
+  const targetId = ctx.match[1];
+  
+  await ctx.telegram.sendMessage(targetId, "<b>❌ Deposit Rejected</b>\n\nYour receipt was not verified. Please contact support or send a valid screenshot.", { parse_mode: 'HTML' });
+  
+  await ctx.answerCbQuery("Request Rejected.");
+  return ctx.editMessageCaption(`❌ <b>Rejected:</b> Request from User <code>${targetId}</code> was declined.`, { parse_mode: 'HTML' });
+});
+    
+
 bot.action('do_delete', async (ctx) => {
   await env.DB.prepare("DELETE FROM users WHERE user_id = ?").bind(ctx.from.id).run();
   await ctx.answerCbQuery("Account Deleted");
