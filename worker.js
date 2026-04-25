@@ -131,15 +131,16 @@ To participate in our lottery, you must join our official channel first.
     });
 
     // Webhook handle
-    const { body } = request;
     if (request.method === 'POST') {
       const update = await request.json();
       await bot.handleUpdate(update);
+      return new Response("OK");
     }
-    return new Response("OK");
+    
+    return new Response("Bot is running!");
   }
 };
-              
+                 
     
     // --- [ 1. የአድሚን ሜኑ ትዕዛዝ ] ---
 bot.command('admin_menu', async (ctx) => {
