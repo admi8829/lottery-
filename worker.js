@@ -129,7 +129,46 @@ Your account is created. To start earning and buying tickets, please <b>Join our
     return ctx.reply(`<b>❌ Error:</b> <code>${e.message}</code>`, { parse_mode: 'HTML' });
   }
 });
-                       
+
+
+  bot.hears('👥 Invite & Earn', async (ctx) => {
+  const userId = ctx.from.id;
+  const botUsername = ctx.botInfo.username;
+  
+  // የዳታቤዝ መረጃ (ስንት ሰው እንደጋበዘ ለማሳየት)
+  const user = await env.DB.prepare("SELECT invite_count, balance FROM users WHERE user_id = ?")
+    .bind(userId)
+    .first();
+
+  const invites = user?.invite_count || 0;
+  const earnings = invites * 2; // ለእያንዳንዱ 2 ብር ከሆነ
+  const inviteLink = `https://t.me/${botUsername}?start=ref_${userId}`;
+
+  const inviteMessage = `
+<b>👥 Invite Friends & Earn Money!</b>
+━━━━━━━━━━━━━━━━━━
+Share your referral link with friends and family. For every person who joins and registers, you will receive <b>2 ETB</b> in your wallet!
+
+<b>📊 Your Stats:</b>
+• Total Invited: <b>${invites} users</b>
+• Total Earned: <b>${earnings} ETB</b>
+
+<b>🔗 Your Referral Link:</b>
+<code>${inviteLink}</code>
+━━━━━━━━━━━━━━━━━━
+<i>Copy the link above and start sharing! 🚀</i>`;
+
+  // በቀጥታ ለሰዎች Forward እንዲያደርጉት የሚረዳ አዝራር (Inline)
+  const shareKeyboard = Markup.inlineKeyboard([
+    [Markup.button.url('📢 Share with Friends', `https://t.me/share/url?url=${inviteLink}&text=Join%20this%20bot%20to%20play%20lottery%20and%20win%20prizes!%20🎁`)]
+  ]);
+
+  return ctx.reply(inviteMessage, { 
+    parse_mode: 'HTML',
+    ...shareKeyboard 
+  });
+});
+    
 
 bot.hears('⚙️ Settings', async (ctx) => {
   const settingsKeyboard = Markup.inlineKeyboard([
