@@ -22,20 +22,41 @@ const requestPhoneKeyboard = Markup.keyboard([
     
     // Start Command
     bot.start(async (ctx) => {
-      try {
-        // መጀመሪያ ዳታቤዙን ቼክ እናድርግ
-        const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(ctx.from.id).first();
-        
-        if (user) {
-          return ctx.reply(`እንኳን ደህና መጡ ${user.name}!`, mainKeyboard);
-        } else {
-          return ctx.reply("እንኳን ደህና መጡ! ለመመዝገብ ስልክዎን ይላኩ።", requestPhoneKeyboard);
-        }
-      } catch (e) {
-        // ዳታቤዙ ከሌለ እዚህ ጋር ይነግረናል
-        return ctx.reply("የዳታቤዝ ስህተት፡ " + e.message + "\n(ምናልባት Table አልተፈጠረም)");
+  try {
+    const userId = ctx.from.id;
+    const startPayload = ctx.startPayload; // ref_12345
+    
+    // 1. መጀመሪያ ተጠቃሚው መኖሩን ቼክ እናደርጋለን
+    const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
+
+    if (user) {
+      return ctx.reply(`Welcome back ${user.name}! 👋`, mainKeyboard);
+    }
+
+    // 2. ተጠቃሚው አዲስ ከሆነ እና በሪፈራል ሊንክ ከመጣ
+    let referrerId = null;
+    if (startPayload && startPayload.startsWith('ref_')) {
+      const potentialReferrer = parseInt(startPayload.replace('ref_', ''));
+
+      // 🛑 መጭበርበር መከላከያ፡ ራሱን እንዳይጋብዝ ቼክ ማድረግ
+      if (potentialReferrer !== userId) {
+        referrerId = potentialReferrer;
       }
-    });
+    }
+
+    // 3. ተጠቃሚውን ለጊዜው መመዝገብ (ስልኩን እስኪልክ ድረስ referred_by መረጃን ይዞ እንዲቆይ)
+    // ስሙን ለጊዜው 'Pending' እንበለው
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, ?, ?)"
+    ).bind(userId, "Pending User", referrerId, 0, 0).run();
+
+    return ctx.reply("እንኳን ደህና መጡ! ለመመዝገብ እባክዎ ስልክ ቁጥርዎን ይላኩ።", requestPhoneKeyboard);
+
+  } catch (e) {
+    return ctx.reply("Error: " + e.message);
+  }
+});
+    
 
     // ስልክ ሲላ
 bot.on('contact', async (ctx) => {
@@ -49,25 +70,43 @@ bot.on('contact', async (ctx) => {
     const phone = ctx.message.contact.phone_number;
     const username = ctx.from.username || "N/A";
 
-    // 1. መጀመሪያ ተጠቃሚው ዳታቤዝ ውስጥ መኖሩን ቼክ እናደርጋለን
-    const existingUser = await env.DB.prepare("SELECT user_id FROM users WHERE user_id = ?")
+    // 1. የተጠቃሚውን ነባር መረጃ ከዳታቤዝ መፈለግ
+    const existingUser = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?")
       .bind(userId)
       .first();
 
-    // 2. ዳታውን እናድሳለን (INSERT OR REPLACE)
-    await env.DB.prepare(
-      "INSERT OR REPLACE INTO users (user_id, phone, name, username) VALUES (?, ?, ?, ?)"
-    ).bind(userId, phone, fullName, username).run();
+    // 2. ተጠቃሚው አዲስ ከሆነ (ወይም ስልኩን ገና ካልላከ) እና በሪፈራል የመጣ ከሆነ ለጋባዡ ብር መክፈል
+    if (existingUser && !existingUser.phone && existingUser.referred_by) {
+      const referrerId = existingUser.referred_by;
 
-    // 3. ተጠቃሚው ቀድሞ የነበረ ከሆነ "Updated" የሚል መልዕክት ብቻ እንልካለን
-    if (existingUser) {
+      // ለጋባዡ 2 ብር መጨምር እና የኢንቫይት ብዛት መቁጠር
+      await env.DB.prepare(
+        "UPDATE users SET balance = balance + 2, invite_count = invite_count + 1 WHERE user_id = ?"
+      ).bind(referrerId).run();
+
+      // ለጋባዡ ማሳወቂያ መላክ
+      try {
+        await ctx.telegram.sendMessage(referrerId, `<b>🎊 New Referral!</b>\nSomeone joined using your link. <b>+2 ETB</b> added to your wallet.`, { parse_mode: 'HTML' });
+      } catch (err) {
+        console.log("Referrer notification failed");
+      }
+    }
+
+    // 3. የተጠቃሚውን መረጃ ማዘመን (Update user data)
+    // ማሳሰቢያ፡ INSERT OR REPLACE ካልን የቆየውን balance ሊያጠፋው ስለሚችል UPDATE መጠቀም ይሻላል
+    await env.DB.prepare(
+      "UPDATE users SET phone = ?, name = ?, username = ? WHERE user_id = ?"
+    ).bind(phone, fullName, username, userId).run();
+
+    // 4. ተጠቃሚው ቀድሞ የነበረ ከሆነ (Profile Update ካደረገ)
+    if (existingUser && existingUser.phone) {
       return ctx.reply(`<b>✅ Profile Updated Successfully!</b>\n\nYour information has been refreshed, <b>${fullName}</b>.`, {
         parse_mode: 'HTML',
-        ...mainKeyboard // ዋናውን የሪፕላይ በተን ይመልስለታል
+        ...mainKeyboard 
       });
     }
 
-    // 4. ተጠቃሚው አዲስ ከሆነ (ለመጀመሪያ ጊዜ ሲመዘገብ) ቻናል እንዲቀላቀል እንጠይቃለን
+    // 5. ተጠቃሚው አዲስ ከሆነ (ለመጀመሪያ ጊዜ ሲመዘገብ) የቻናል ግዴታ ማሳየት
     const channelLink = "https://t.me/SmartX_Ethio"; 
     const joinKeyboard = Markup.inlineKeyboard([
       [Markup.button.url('📢 Join Our Channel', channelLink)],
@@ -78,7 +117,7 @@ bot.on('contact', async (ctx) => {
 <b>Registration Successful! ✅</b>
 ━━━━━━━━━━━━━━━━━━
 <b>Welcome, ${fullName}!</b>
-To complete your access and start using the bot, please <b>Join our Official Channel</b> below.
+Your account is created. To start earning and buying tickets, please <b>Join our Official Channel</b> below.
 ━━━━━━━━━━━━━━━━━━`;
 
     return ctx.reply(welcomeMessage, {
@@ -90,7 +129,7 @@ To complete your access and start using the bot, please <b>Join our Official Cha
     return ctx.reply(`<b>❌ Error:</b> <code>${e.message}</code>`, { parse_mode: 'HTML' });
   }
 });
-    
+                       
 
 bot.hears('⚙️ Settings', async (ctx) => {
   const settingsKeyboard = Markup.inlineKeyboard([
