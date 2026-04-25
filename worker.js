@@ -5,130 +5,107 @@ export default {
     if (!env.BOT_TOKEN) return new Response("BOT_TOKEN missing");
     
     const bot = new Telegraf(env.BOT_TOKEN);
+    const CHANNEL_ID = "@SmartX_Ethio"; // ያንተ ቻናል
 
-// 1. ዋናው ሜኑ (Main Menu) - Updated
-const mainKeyboard = Markup.keyboard([
-  ['🎟 New Ticket'],                          // ትልቅ አዝራር
-  ['👤 My Info', '⚙️ Settings'],             // መረጃ እና ሴቲንግ
-  ['🏆 Winners', '💰 Wallet & Invite'],               // አሸናፊዎች እና የገንዘብ ቦርሳ (አዲሱ)
-  ['👥 Invite & Earn', '❓ Help']                   // ግብዣ እና እርዳታ
-]).resize();
+    // --- 1. Keyboards ---
+    const mainKeyboard = Markup.keyboard([
+      ['🎟 New Ticket'],
+      ['🎟 My Tickets', '⚙️ Settings'],
+      ['🏆 Winners', '💰 Wallet & Invite'],
+      ['👥 Invite & Earn', '❓ Help']
+    ]).resize();
 
-// 2. ስልክ ቁጥር መጠየቂያ
-const requestPhoneKeyboard = Markup.keyboard([
-  [Markup.button.contactRequest('📲 ስልክ ቁጥሬን ላክ')]
-]).resize();
-    
-    
-    // Start Command
+    const requestPhoneKeyboard = Markup.keyboard([
+      [Markup.button.contactRequest('📲 ስልክ ቁጥሬን ላክ')]
+    ]).resize();
+
+    // --- 2. Start Command ---
     bot.start(async (ctx) => {
-  try {
-    const userId = ctx.from.id;
-    const startPayload = ctx.startPayload; // ref_12345
-    
-    // 1. መጀመሪያ ተጠቃሚው መኖሩን ቼክ እናደርጋለን
-    const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
-
-    if (user) {
-      return ctx.reply(`Welcome back ${user.name}! 👋`, mainKeyboard);
-    }
-
-    // 2. ተጠቃሚው አዲስ ከሆነ እና በሪፈራል ሊንክ ከመጣ
-    let referrerId = null;
-    if (startPayload && startPayload.startsWith('ref_')) {
-      const potentialReferrer = parseInt(startPayload.replace('ref_', ''));
-
-      // 🛑 መጭበርበር መከላከያ፡ ራሱን እንዳይጋብዝ ቼክ ማድረግ
-      if (potentialReferrer !== userId) {
-        referrerId = potentialReferrer;
-      }
-    }
-
-    // 3. ተጠቃሚውን ለጊዜው መመዝገብ (ስልኩን እስኪልክ ድረስ referred_by መረጃን ይዞ እንዲቆይ)
-    // ስሙን ለጊዜው 'Pending' እንበለው
-    await env.DB.prepare(
-      "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, ?, ?)"
-    ).bind(userId, "Pending User", referrerId, 0, 0).run();
-
-    return ctx.reply("እንኳን ደህና መጡ! ለመመዝገብ እባክዎ ስልክ ቁጥርዎን ይላኩ።", requestPhoneKeyboard);
-
-  } catch (e) {
-    return ctx.reply("Error: " + e.message);
-  }
-});
-    
-
-    // ስልክ ሲላ
-bot.on('contact', async (ctx) => {
-  try {
-    if (!ctx.message || !ctx.message.contact) {
-      return ctx.reply("<b>⚠️ Error</b>\nPlease use the button to share your contact.", { parse_mode: 'HTML' });
-    }
-
-    const userId = ctx.from.id;
-    const fullName = `${ctx.from.first_name} ${ctx.from.last_name || ""}`.trim();
-    const phone = ctx.message.contact.phone_number;
-    const username = ctx.from.username || "N/A";
-
-    // 1. የተጠቃሚውን ነባር መረጃ ከዳታቤዝ መፈለግ
-    const existingUser = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?")
-      .bind(userId)
-      .first();
-
-    // 2. ተጠቃሚው አዲስ ከሆነ (ወይም ስልኩን ገና ካልላከ) እና በሪፈራል የመጣ ከሆነ ለጋባዡ ብር መክፈል
-    if (existingUser && !existingUser.phone && existingUser.referred_by) {
-      const referrerId = existingUser.referred_by;
-
-      // ለጋባዡ 2 ብር መጨምር እና የኢንቫይት ብዛት መቁጠር
-      await env.DB.prepare(
-        "UPDATE users SET balance = balance + 2, invite_count = invite_count + 1 WHERE user_id = ?"
-      ).bind(referrerId).run();
-
-      // ለጋባዡ ማሳወቂያ መላክ
       try {
-        await ctx.telegram.sendMessage(referrerId, `<b>🎊 New Referral!</b>\nSomeone joined using your link. <b>+2 ETB</b> added to your wallet.`, { parse_mode: 'HTML' });
-      } catch (err) {
-        console.log("Referrer notification failed");
-      }
-    }
+        const userId = ctx.from.id;
+        const startPayload = ctx.startPayload;
+        
+        const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
 
-    // 3. የተጠቃሚውን መረጃ ማዘመን (Update user data)
-    // ማሳሰቢያ፡ INSERT OR REPLACE ካልን የቆየውን balance ሊያጠፋው ስለሚችል UPDATE መጠቀም ይሻላል
-    await env.DB.prepare(
-      "UPDATE users SET phone = ?, name = ?, username = ? WHERE user_id = ?"
-    ).bind(phone, fullName, username, userId).run();
+        if (user && user.phone) {
+          return ctx.reply(`<b>Welcome back, ${user.name}!</b> 👋`, { parse_mode: 'HTML', ...mainKeyboard });
+        }
 
-    // 4. ተጠቃሚው ቀድሞ የነበረ ከሆነ (Profile Update ካደረገ)
-    if (existingUser && existingUser.phone) {
-      return ctx.reply(`<b>✅ Profile Updated Successfully!</b>\n\nYour information has been refreshed, <b>${fullName}</b>.`, {
-        parse_mode: 'HTML',
-        ...mainKeyboard 
-      });
-    }
+        let referrerId = null;
+        if (startPayload && startPayload.startsWith('ref_')) {
+          const ref = parseInt(startPayload.replace('ref_', ''));
+          if (ref !== userId) referrerId = ref;
+        }
 
-    // 5. ተጠቃሚው አዲስ ከሆነ (ለመጀመሪያ ጊዜ ሲመዘገብ) የቻናል ግዴታ ማሳየት
-    const channelLink = "https://t.me/SmartX_Ethio"; 
-    const joinKeyboard = Markup.inlineKeyboard([
-      [Markup.button.url('📢 Join Our Channel', channelLink)],
-      [Markup.button.callback('✅ Joined - Continue', 'check_join')]
-    ]);
+        await env.DB.prepare(
+          "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, ?, ?)"
+        ).bind(userId, ctx.from.first_name, referrerId, 0, 0).run();
 
-    const welcomeMessage = `
-<b>Registration Successful! ✅</b>
+        const welcomeMsg = `
+✨ <b>Welcome to SmartX Lottery!</b> ✨
 ━━━━━━━━━━━━━━━━━━
-<b>Welcome, ${fullName}!</b>
-Your account is created. To start earning and buying tickets, please <b>Join our Official Channel</b> below.
+To start winning amazing prizes, please complete your registration.
+
+<b>1. Join our channel:</b> ${CHANNEL_ID}
+<b>2. Share your phone number</b> using the button below.
 ━━━━━━━━━━━━━━━━━━`;
 
-    return ctx.reply(welcomeMessage, {
-      parse_mode: 'HTML',
-      ...joinKeyboard
+        return ctx.reply(welcomeMsg, { parse_mode: 'HTML', ...requestPhoneKeyboard });
+      } catch (e) {
+        return ctx.reply("Error: " + e.message);
+      }
     });
 
-  } catch (e) {
-    return ctx.reply(`<b>❌ Error:</b> <code>${e.message}</code>`, { parse_mode: 'HTML' });
-  }
-});
+    // --- 3. Phone Verification & Draw Info Display ---
+    bot.on('contact', async (ctx) => {
+      try {
+        const userId = ctx.from.id;
+        const contact = ctx.message.contact;
+
+        if (contact.user_id !== userId) {
+          return ctx.reply("❌ <b>Security Alert:</b> Please send your own contact number!", { parse_mode: 'HTML' });
+        }
+
+        // ምዝገባ ማጠናቀቅ
+        await env.DB.prepare("UPDATE users SET phone = ?, name = ? WHERE user_id = ?")
+          .bind(contact.phone_number, ctx.from.first_name, userId).run();
+
+        // ሪፈራል ክፍያ
+        const user = await env.DB.prepare("SELECT referred_by FROM users WHERE user_id = ?").bind(userId).first();
+        if (user && user.referred_by) {
+          await env.DB.prepare("UPDATE users SET balance = balance + 2, invite_count = invite_count + 1 WHERE user_id = ?")
+            .bind(user.referred_by).run();
+          try {
+            await ctx.telegram.sendMessage(user.referred_by, "🎊 <b>New Referral!</b> +2 ETB added to your wallet.", { parse_mode: 'HTML' });
+          } catch (err) {}
+        }
+
+        // ከዳታቤዝ የዕጣ መረጃ ማምጣት (ከዚህ በፊት በሰራነው draw_settings table መሰረት)
+        const draw = await env.DB.prepare("SELECT * FROM draw_settings WHERE id = 1").first();
+        
+        const successMsg = `
+✅ <b>Verification Complete!</b> 🔓
+━━━━━━━━━━━━━━━━━━
+Your account is now fully active.
+
+🔥 <b>Current Active Draw Details:</b>
+🏆 <b>ዕጣ፡</b> <code>${draw?.draw_name || "የሳምንቱ መደበኛ ዕጣ"}</code>
+
+<b>🎁 የሽልማት ደረጃዎች (Prizes):</b>
+🥇 1ኛ ዕጣ: <b>${draw?.prize_1 || "500 ETB"}</b>
+🥈 2ኛ ዕጣ: <b>${draw?.prize_2 || "250 ETB"}</b>
+🥉 3ኛ ዕጣ: <b>${draw?.prize_3 || "100 ETB"}</b>
+
+📅 <b>የዕጣ ቀን:</b> <code>${draw?.draw_date || "በቅርብ ቀን"}</code>
+━━━━━━━━━━━━━━━━━━
+<i>Start playing now and be the next winner!</i>`;
+
+        return ctx.reply(successMsg, { parse_mode: 'HTML', ...mainKeyboard });
+
+      } catch (e) {
+        return ctx.reply("Error: " + e.message);
+      }
+    });
 
  bot.hears('🎟 New Ticket', async (ctx) => {
   const userId = ctx.from.id;
