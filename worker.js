@@ -10,7 +10,7 @@ export default {
 const mainKeyboard = Markup.keyboard([
   ['🎟 New Ticket'],                          // ትልቅ አዝራር
   ['👤 My Info', '⚙️ Settings'],             // መረጃ እና ሴቲንግ
-  ['🏆 Winners', '💰 Wallet'],               // አሸናፊዎች እና የገንዘብ ቦርሳ (አዲሱ)
+  ['🏆 Winners', '💰 Wallet & Invite'],               // አሸናፊዎች እና የገንዘብ ቦርሳ (አዲሱ)
   ['👥 Invite & Earn', '❓ Help']                   // ግብዣ እና እርዳታ
 ]).resize();
 
