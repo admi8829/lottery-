@@ -411,24 +411,77 @@ bot.hears('🎟 My Tickets', async (ctx) => {
       
 
 // 3. Deposit Info (editMessageText ተጠቀምንበት)
+// --- Deposit መመሪያ ማሳያ ---
 bot.action('show_deposit_info', async (ctx) => {
   await ctx.answerCbQuery();
   const depositText = `
-<b>📥 How to Deposit</b>
+<b>📥 Deposit Funds</b>
 ━━━━━━━━━━━━━━━━━━
-1. Send the amount to:
-   - <b>Telebirr:</b> <code>0911223344</code>
-   - <b>CBE Birr:</b> <code>0911223344</code>
-2. Send the <b>Screenshot</b> to @AdminUsername.
-3. Your wallet will be updated after verification.
+To add balance to your wallet, please use one of the payment methods below:
+
+🔸 <b>Telebirr:</b> <code>0911223344</code>
+🔸 <b>CBE Birr:</b> <code>0911223344</code>
+🔸 <b>CBE Bank:</b> <code>100012345678</code>
+
+<b>⚠️ Instructions:</b>
+1. Transfer the amount you wish to deposit.
+2. Take a <b>Screenshot</b> of the successful transaction.
+3. Click the <b>"📸 Send Screenshot"</b> button below and upload the photo.
 ━━━━━━━━━━━━━━━━━━`;
   
   const keyboard = Markup.inlineKeyboard([
+    [Markup.button.callback('📸 Send Screenshot', 'ask_for_photo')],
     [Markup.button.callback('🔙 Back to Wallet', 'back_to_wallet')]
   ]);
 
   return ctx.editMessageText(depositText, { parse_mode: 'HTML', ...keyboard });
 });
+
+// ፎቶ እንዲልኩ መጠየቂያ
+bot.action('ask_for_photo', async (ctx) => {
+  await ctx.answerCbQuery();
+  return ctx.reply("<b>📸 Please upload your Screenshot now:</b>\nMake sure the transaction reference number is visible.", { parse_mode: 'HTML' });
+});
+
+// --- ፎቶ ሲላክ ለአድሚን የሚሄድበት ሲስተም ---
+bot.on('photo', async (ctx) => {
+  const adminId = "8344169004"; // 👈 እዚህ ጋር ያንተን ID ተካው (ቁጥር ብቻ)
+  const userId = ctx.from.id;
+  const firstName = ctx.from.first_name;
+  const username = ctx.from.username ? `@${ctx.from.username}` : "No Username";
+  
+  // የሰውየውን ስልክ ከዳታቤዝ እናምጣ
+  const user = await env.DB.prepare("SELECT phone FROM users WHERE user_id = ?").bind(userId).first();
+  const phone = user?.phone || "Phone not found";
+
+  // ለተጠቃሚው ማረጋገጫ መስጠት
+  await ctx.reply("<b>⏳ Receipt Received!</b>\nYour payment is being verified by the admin. Please wait...", { parse_mode: 'HTML' });
+
+  // ለአድሚኑ መረጃውን መላክ
+  const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+  const adminCaption = `
+<b>💰 New Deposit Request</b>
+━━━━━━━━━━━━━━━━━━
+👤 <b>Name:</b> ${firstName}
+🆔 <b>User ID:</b> <code>${userId}</code>
+📞 <b>Phone:</b> <code>${phone}</code>
+🔗 <b>Username:</b> ${username}
+━━━━━━━━━━━━━━━━━━
+Select an amount to approve:`;
+
+  const adminKeyboard = Markup.inlineKeyboard([
+    [Markup.button.callback('✅ Approve 10 ETB', `approve_${userId}_10`)],
+    [Markup.button.callback('✅ Approve 50 ETB', `approve_${userId}_50`)],
+    [Markup.button.callback('❌ Reject Request', `reject_${userId}`)]
+  ]);
+
+  return ctx.telegram.sendPhoto(adminId, photoId, {
+    caption: adminCaption,
+    parse_mode: 'HTML',
+    ...adminKeyboard
+  });
+});
+    
 
 // 4. Withdrawal Request
 bot.action('request_withdraw', async (ctx) => {
