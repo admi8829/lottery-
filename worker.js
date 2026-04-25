@@ -100,56 +100,94 @@ Your membership is verified. Now, please share your phone number to complete you
 });
                                                   
     
-    // --- 3. Phone Verification & Draw Info Display ---
-    bot.on('contact', async (ctx) => {
+    // --- 3. Phone Verification & Draw Info Display --
+bot.on('contact', async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    const contact = ctx.message.contact;
+
+    if (contact.user_id !== userId) {
+      return ctx.reply("❌ <b>Security Alert:</b> Please send your own contact number!", { parse_mode: 'HTML' });
+    }
+
+    // 1. ምዝገባ ማጠናቀቅ (Update Phone and Name)
+    await env.DB.prepare("UPDATE users SET phone = ?, name = ? WHERE user_id = ?")
+      .bind(contact.phone_number, ctx.from.first_name, userId).run();
+
+    // 2. የተጠቃሚውን ቋንቋ እና ሪፈራል መረጃ ማምጣት
+    const user = await env.DB.prepare("SELECT language, referred_by FROM users WHERE user_id = ?").bind(userId).first();
+    const lang = user?.language || 'en'; // Default to English if not set
+
+    // 3. የሪፈራል ክፍያ (Referral Bonus)
+    if (user && user.referred_by) {
+      await env.DB.prepare("UPDATE users SET balance = balance + 2, invite_count = invite_count + 1 WHERE user_id = ?")
+        .bind(user.referred_by).run();
+      
+      const refMsg = user.language === 'am' ? "🎊 <b>አዲስ ሪፈራል!</b> +2 ETB ወደ Walletዎ ተጨምሯል።" : "🎊 <b>New Referral!</b> +2 ETB added to your wallet.";
       try {
-        const userId = ctx.from.id;
-        const contact = ctx.message.contact;
+        await ctx.telegram.sendMessage(user.referred_by, refMsg, { parse_mode: 'HTML' });
+      } catch (err) {}
+    }
 
-        if (contact.user_id !== userId) {
-          return ctx.reply("❌ <b>Security Alert:</b> Please send your own contact number!", { parse_mode: 'HTML' });
-        }
-
-        // ምዝገባ ማጠናቀቅ
-        await env.DB.prepare("UPDATE users SET phone = ?, name = ? WHERE user_id = ?")
-          .bind(contact.phone_number, ctx.from.first_name, userId).run();
-
-        // ሪፈራል ክፍያ
-        const user = await env.DB.prepare("SELECT referred_by FROM users WHERE user_id = ?").bind(userId).first();
-        if (user && user.referred_by) {
-          await env.DB.prepare("UPDATE users SET balance = balance + 2, invite_count = invite_count + 1 WHERE user_id = ?")
-            .bind(user.referred_by).run();
-          try {
-            await ctx.telegram.sendMessage(user.referred_by, "🎊 <b>New Referral!</b> +2 ETB added to your wallet.", { parse_mode: 'HTML' });
-          } catch (err) {}
-        }
-
-        // ከዳታቤዝ የዕጣ መረጃ ማምጣት (ከዚህ በፊት በሰራነው draw_settings table መሰረት)
-        const draw = await env.DB.prepare("SELECT * FROM draw_settings WHERE id = 1").first();
-        
-        const successMsg = `
-✅ <b>Verification Complete!</b> 🔓
+    // 4. ከዳታቤዝ የዕጣ መረጃ ማምጣት
+    const draw = await env.DB.prepare("SELECT * FROM draw_settings WHERE id = 1").first();
+    
+    // 5. በቋንቋው መሰረት መልዕክቱን ማዘጋጀት
+    let successMsg = "";
+    if (lang === 'am') {
+      // --- አማርኛ ዲዛይን ---
+      successMsg = `
+✅ <b>ምዝገባው ተጠናቅቋል!</b> 🔓
 ━━━━━━━━━━━━━━━━━━
-Your account is now fully active.
+እንኳን ደህና መጡ! አካውንትዎ አሁን ንቁ ነው።
 
-🔥 <b>Current Active Draw Details:</b>
-🏆 <b>ዕጣ፡</b> <code>${draw?.draw_name || "የሳምንቱ መደበኛ ዕጣ"}</code>
+🔥 <b>የአሁኑ ንቁ ዕጣ ዝርዝር፡</b>
+🏆 <b>የዕጣው ስም፡</b> <code>${draw?.draw_name || "መደበኛ ዕጣ"}</code>
 
-<b>🎁 የሽልማት ደረጃዎች (Prizes):</b>
+<b>🎁 የሽልማት ደረጃዎች፡</b>
 🥇 1ኛ ዕጣ: <b>${draw?.prize_1 || "500 ETB"}</b>
 🥈 2ኛ ዕጣ: <b>${draw?.prize_2 || "250 ETB"}</b>
 🥉 3ኛ ዕጣ: <b>${draw?.prize_3 || "100 ETB"}</b>
 
 📅 <b>የዕጣ ቀን:</b> <code>${draw?.draw_date || "በቅርብ ቀን"}</code>
 ━━━━━━━━━━━━━━━━━━
+<i>አሁኑኑ መጫወት ይጀምሩና ቀጣዩ አሸናፊ ይሁኑ!</i>`;
+    } else {
+      // --- English Design ---
+      successMsg = `
+✅ <b>Verification Complete!</b> 🔓
+━━━━━━━━━━━━━━━━━━
+Your account is now fully active.
+
+🔥 <b>Current Active Draw Details:</b>
+🏆 <b>Draw Name:</b> <code>${draw?.draw_name || "Weekly Regular Draw"}</code>
+
+<b>🎁 Prize Tiers:</b>
+🥇 1st Prize: <b>${draw?.prize_1 || "500 ETB"}</b>
+🥈 2nd Prize: <b>${draw?.prize_2 || "250 ETB"}</b>
+🥉 3rd Prize: <b>${draw?.prize_3 || "100 ETB"}</b>
+
+📅 <b>Draw Date:</b> <code>${draw?.draw_date || "Coming Soon"}</code>
+━━━━━━━━━━━━━━━━━━
 <i>Start playing now and be the next winner!</i>`;
+    }
 
-        return ctx.reply(successMsg, { parse_mode: 'HTML', ...mainKeyboard });
+    // 6. ዋናውን ሜኑ መላክ (Inline Button ለተጨማሪ ማብራሪያ ጨምሬበታለሁ)
+    const extraInfo = Markup.inlineKeyboard([
+        [Markup.button.callback(lang === 'am' ? '📖 እንዴት ነው የምጫወተው?' : '📖 How to Play?', 'help_guide')]
+    ]);
 
-      } catch (e) {
-        return ctx.reply("Error: " + e.message);
-      }
+    return ctx.reply(successMsg, { 
+      parse_mode: 'HTML', 
+      ...mainKeyboard,
+      ...extraInfo 
     });
+
+  } catch (e) {
+    return ctx.reply("Error: " + e.message);
+  }
+});
+    
 
     // --- [ 1. የአድሚን ሜኑ ትዕዛዝ ] ---
 bot.command('admin_menu', async (ctx) => {
