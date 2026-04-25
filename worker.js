@@ -840,6 +840,6 @@ bot.on('text', async (ctx) => {
       }
     }
     return new Response('Bot is Online!');
-  
+} 
 };
       
