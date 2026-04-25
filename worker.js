@@ -1,4 +1,27 @@
 import { Telegraf, Markup } from 'telegraf';
+// የተጠቃሚውን አባልነት ቼክ ማድረጊያ ረዳት ፈንክሽን
+async function checkUserMembership(ctx, CHANNEL_ID) {
+  try {
+    const member = await ctx.telegram.getChatMember(CHANNEL_ID, ctx.from.id);
+    return ['member', 'administrator', 'creator'].includes(member.status);
+  } catch (e) {
+    return false; 
+  }
+}
+
+// አባል ላልሆነ ሰው የሚላክ ውብ መልዕክት
+const sendJoinNotice = (ctx, CHANNEL_ID) => {
+  const keyboard = Markup.inlineKeyboard([
+    [Markup.button.url('📢 ቻናላችንን ይቀላቀሉ', `https://t.me/${CHANNEL_ID.replace('@', '')}`)],
+    [Markup.button.callback('✅ ተቀላቅያለሁ አረጋግጥ', 'check_join')]
+  ]);
+
+  return ctx.reply(`👋 <b>ሰላም ${ctx.from.first_name}!</b>\n\nለመቀጠል መጀመሪያ የቴሌግራም ቻናላችንን መቀላቀል አለብዎት። አባል ሲሆኑ ልዩ ልዩ ጥቅማጥቅሞችን እና የዕጣ መረጃዎችን ያገኛሉ!`, {
+    parse_mode: 'HTML',
+    ...keyboard
+  });
+};
+
 
 export default {
   async fetch(request, env, ctx) {
@@ -20,41 +43,63 @@ export default {
     ]).resize();
 
     // --- 2. Start Command ---
-    bot.start(async (ctx) => {
-      try {
-        const userId = ctx.from.id;
-        const startPayload = ctx.startPayload;
-        
-        const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
+bot.start(async (ctx) => {
+  try {
+    // 1. መጀመሪያ ተጠቃሚው ቻናሉን መቀላቀሉን ያረጋግጣል
+    const isMember = await checkUserMembership(ctx, CHANNEL_ID);
+    
+    // አባል ካልሆነ የጆይን ማስታወቂያውን ልኮ እዚህ ላይ ያቆማል
+    if (!isMember) {
+      return sendJoinNotice(ctx, CHANNEL_ID);
+    }
 
-        if (user && user.phone) {
-          return ctx.reply(`<b>Welcome back, ${user.name}!</b> 👋`, { parse_mode: 'HTML', ...mainKeyboard });
-        }
+    const userId = ctx.from.id;
+    const startPayload = ctx.startPayload;
+    
+    // 2. ተጠቃሚው ቀድሞ መመዝገቡን በዳታቤዝ ያረጋግጣል
+    const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
 
-        let referrerId = null;
-        if (startPayload && startPayload.startsWith('ref_')) {
-          const ref = parseInt(startPayload.replace('ref_', ''));
-          if (ref !== userId) referrerId = ref;
-        }
+    // ስልክ ቁጥሩ ካለ ቀጥታ ወደ ዋናው ሜኑ ይወስደዋል
+    if (user && user.phone) {
+      return ctx.reply(`<b>Welcome back, ${user.name}!</b> 👋`, { 
+        parse_mode: 'HTML', 
+        ...mainKeyboard 
+      });
+    }
 
-        await env.DB.prepare(
-          "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, ?, ?)"
-        ).bind(userId, ctx.from.first_name, referrerId, 0, 0).run();
+    // 3. የሪፈራል (Referral) ሎጂክ - ጋባዡን መለየት
+    let referrerId = null;
+    if (startPayload && startPayload.startsWith('ref_')) {
+      const ref = parseInt(startPayload.replace('ref_', ''));
+      // ተጠቃሚው ራሱን መጋበዝ የለበትም
+      if (ref !== userId) referrerId = ref;
+    }
 
-        const welcomeMsg = `
+    // 4. ተጠቃሚውን ዳታቤዝ ውስጥ ማስመዝገብ (ከሌለ)
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, ?, ?)"
+    ).bind(userId, ctx.from.first_name, referrerId, 0, 0).run();
+
+    // 5. አዲስ ተጠቃሚ ከሆነ የምዝገባ መመሪያውን ያሳያል
+    const welcomeMsg = `
 ✨ <b>Welcome to SmartX Lottery!</b> ✨
 ━━━━━━━━━━━━━━━━━━
 To start winning amazing prizes, please complete your registration.
 
-<b>1. Join our channel:</b> ${CHANNEL_ID}
-<b>2. Share your phone number</b> using the button below.
+<b>📱 Step: Share your phone number</b> using the button below to verify your account.
 ━━━━━━━━━━━━━━━━━━`;
 
-        return ctx.reply(welcomeMsg, { parse_mode: 'HTML', ...requestPhoneKeyboard });
-      } catch (e) {
-        return ctx.reply("Error: " + e.message);
-      }
+    return ctx.reply(welcomeMsg, { 
+      parse_mode: 'HTML', 
+      ...requestPhoneKeyboard 
     });
+
+  } catch (e) {
+    console.error("Start Command Error:", e);
+    return ctx.reply("Error: " + e.message);
+  }
+});
+    
     
     // --- 3. Phone Verification & Draw Info Display ---
     bot.on('contact', async (ctx) => {
@@ -328,6 +373,19 @@ Your Link: <code>${inviteLink}</code>`;
     return ctx.reply("Error: " + e.message);
   }
 });
+
+  bot.action('check_join', async (ctx) => {
+  const isMember = await checkUserMembership(ctx, CHANNEL_ID);
+  
+  if (isMember) {
+    await ctx.answerCbQuery("🎉 እንኳን ደስ አለዎት! በትክክል ተቀላቅለዋል።");
+    await ctx.deleteMessage(); // የጆይን መልዕክቱን ያጠፋዋል
+    return ctx.reply("✅ ማረጋገጫ ተጠናቋል! አሁን ሁሉንም አገልግሎቶች መጠቀም ይችላሉ።", mainKeyboard);
+  } else {
+    return ctx.answerCbQuery("❌ አልተቀላቀሉም! እባክዎ መጀመሪያ ቻናሉን ይቀላቀሉ!", { show_alert: true });
+  }
+});
+    
 
 
 // 2. Buy Ticket (በዳታቤዝ የሚመዘግብ)
