@@ -11,7 +11,7 @@ const mainKeyboard = Markup.keyboard([
   ['🎟 New Ticket'],                          // ትልቅ አዝራር
   ['👤 My Info', '⚙️ Settings'],             // መረጃ እና ሴቲንግ
   ['🏆 Winners', '💰 Wallet'],               // አሸናፊዎች እና የገንዘብ ቦርሳ (አዲሱ)
-  ['🔗 Invite', '❓ Help']                   // ግብዣ እና እርዳታ
+  ['👥 Invite & Earn', '❓ Help']                   // ግብዣ እና እርዳታ
 ]).resize();
 
 // 2. ስልክ ቁጥር መጠየቂያ
