@@ -193,91 +193,99 @@ Manage your account details and payment methods below.
   });
 });
 
-  bot.hears('💰 Wallet & Invite', async (ctx) => {
-  const userId = ctx.from.id;
-  const user = await env.DB.prepare("SELECT balance, invite_count FROM users WHERE user_id = ?").bind(userId).first();
+// 1. Wallet & Invite (አድስ የሚል አዝራር ተጨምሮበታል)
+bot.hears('💰 Wallet & Invite', async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    const user = await env.DB.prepare("SELECT balance, invite_count FROM users WHERE user_id = ?").bind(userId).first();
 
-  const balance = user?.balance || 0;
-  const invites = user?.invite_count || 0;
-  const botUsername = ctx.botInfo.username;
-  const inviteLink = `https://t.me/${botUsername}?start=ref_${userId}`;
+    const balance = user?.balance || 0;
+    const invites = user?.invite_count || 0;
+    const botUsername = ctx.botInfo.username;
+    const inviteLink = `https://t.me/${botUsername}?start=ref_${userId}`;
 
-  const message = `
+    const message = `
 <b>👛 Your Wallet & Invites</b>
 ━━━━━━━━━━━━━━━━━━
-<b>💰 Balance:</b> ${balance} ETB
-<b>👥 Total Invites:</b> ${invites} users
+<b>💰 Balance:</b> <code>${balance} ETB</code>
+<b>👥 Total Invites:</b> <code>${invites} users</code>
 ━━━━━━━━━━━━━━━━━━
 <b>🎁 Invite & Earn:</b>
-Share your link and get <b>2 ETB</b> for every friend who joins!
-Your Link: <code>${inviteLink}</code>
+Share your link and get <b>2 ETB</b> for every friend!
+Your Link: <code>${inviteLink}</code>`;
 
-<i>You can use your balance to buy Tickets or Withdraw.</i>`;
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('🎟 Buy Ticket (10 ETB)', 'buy_with_wallet')],
+      [Markup.button.callback('💸 Withdraw', 'request_withdraw'), Markup.button.callback('📥 Deposit', 'show_deposit_info')],
+      [Markup.button.callback('🔙 Back', 'back_to_settings')]
+    ]);
 
-  const keyboard = Markup.inlineKeyboard([
-    [Markup.button.callback('🎟 Buy Ticket (10 ETB)', 'buy_with_wallet')],
-    [Markup.button.callback('💸 Withdraw Money', 'request_withdraw')],
-    [Markup.button.callback('📥 Deposit Money', 'show_deposit_info')]
-  ]);
-
-  return ctx.reply(message, { parse_mode: 'HTML', ...keyboard });
-});
-    
-
-// Back to settings action (ለ Inline Buttons መልሶ መመለሻ እንዲሆን)
-bot.action('back_to_settings', async (ctx) => {
-  const settingsKeyboard = Markup.inlineKeyboard([
-    [Markup.button.callback('👤 Update Profile', 'update_profile')],
-    [Markup.button.callback('💳 Payment Methods', 'show_payments')],
-    [Markup.button.callback('👨‍💻 Contact Support', 'contact_support')],
-    [Markup.button.callback('❌ Delete My Account', 'confirm_delete')]
-  ]);
-
-  return ctx.editMessageText("<b>⚙️ Settings Menu</b>\nSelect an option to manage your account:", {
-    parse_mode: 'HTML',
-    ...settingsKeyboard
-  });
-});
-    
-
- bot.action('buy_with_wallet', async (ctx) => {
-  const userId = ctx.from.id;
-  const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(userId).first();
-
-  if (user.balance < 10) {
-    return ctx.answerCbQuery("❌ Insufficient balance! You need 10 ETB.", { show_alert: true });
+    return ctx.reply(message, { parse_mode: 'HTML', ...keyboard });
+  } catch (e) {
+    return ctx.reply("Error: " + e.message);
   }
-
-  // 10 ብር መቀነስ
-  await env.DB.prepare("UPDATE users SET balance = balance - 10 WHERE user_id = ?").bind(userId).run();
-
-  // እዚህ ጋር ቲኬት የመፍጠር ስራ ይሰራል (ለምሳሌ Random ቁጥር መስጠት)
-  const ticketNumber = Math.floor(100000 + Math.random() * 900000);
-  
-  return ctx.reply(`✅ <b>Ticket Purchased!</b>\n10 ETB deducted from wallet.\nYour Ticket Number: <b>#${ticketNumber}</b>`, { parse_mode: 'HTML' });
 });
 
-    // Deposit መረጃ ማሳያ
-bot.action('show_deposit_info', (ctx) => {
+// 2. Buy Ticket (በዳታቤዝ የሚመዘግብ)
+bot.action('buy_with_wallet', async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(userId).first();
+
+    if (!user || user.balance < 10) {
+      return ctx.answerCbQuery("❌ Insufficient balance! You need at least 10 ETB.", { show_alert: true });
+    }
+
+    // የሎተሪ ቁጥር መፍጠር
+    const ticketNumber = Math.floor(100000 + Math.random() * 900000);
+
+    // ግብይቱን በአንድ ጊዜ ማከናወን (Balance መቀነስ እና Ticket መመዝገብ)
+    await env.DB.prepare("UPDATE users SET balance = balance - 10 WHERE user_id = ?").bind(userId).run();
+    await env.DB.prepare("INSERT INTO tickets (user_id, ticket_number) VALUES (?, ?)").bind(userId, ticketNumber).run();
+
+    await ctx.answerCbQuery("✅ Ticket Purchased Successfully!", { show_alert: false });
+    
+    return ctx.reply(`
+🎉 <b>Purchase Successful!</b>
+━━━━━━━━━━━━━━━━━━
+ደረጃውን የጠበቀ የሎተሪ ቁጥርዎ፡
+🎫 Ticket Number: <b>#${ticketNumber}</b>
+💰 10 ETB deducted from wallet.
+━━━━━━━━━━━━━━━━━━
+<i>Good luck! You can view your tickets in your profile.</i>`, { parse_mode: 'HTML' });
+
+  } catch (e) {
+    console.error(e);
+    return ctx.answerCbQuery("❌ An error occurred. Try again.");
+  }
+});
+
+// 3. Deposit Info (editMessageText ተጠቀምንበት)
+bot.action('show_deposit_info', async (ctx) => {
+  await ctx.answerCbQuery();
   const depositText = `
 <b>📥 How to Deposit</b>
 ━━━━━━━━━━━━━━━━━━
-1. Send the amount you want to:
+1. Send the amount to:
    - <b>Telebirr:</b> <code>0911223344</code>
    - <b>CBE Birr:</b> <code>0911223344</code>
-2. Send the <b>Screenshot</b> of the receipt to @AdminUsername.
-3. Once verified, your wallet balance will be updated.
+2. Send the <b>Screenshot</b> to @AdminUsername.
+3. Your wallet will be updated after verification.
 ━━━━━━━━━━━━━━━━━━`;
-  return ctx.reply(depositText, { parse_mode: 'HTML' });
+  
+  const keyboard = Markup.inlineKeyboard([
+    [Markup.button.callback('🔙 Back to Wallet', 'back_to_wallet')]
+  ]);
+
+  return ctx.editMessageText(depositText, { parse_mode: 'HTML', ...keyboard });
 });
 
-// Withdrawal ጥያቄ
+// 4. Withdrawal Request
 bot.action('request_withdraw', async (ctx) => {
-  return ctx.reply("To withdraw, please contact @AdminUsername with your registered phone number and the amount you want to withdraw.");
+  await ctx.answerCbQuery();
+  return ctx.reply("📩 <b>Withdrawal Request</b>\nPlease contact @AdminUsername with your registered phone and the amount you wish to withdraw.", { parse_mode: 'HTML' });
 });
-    
-
-    
+                              
   bot.action('check_join', async (ctx) => {
   const channelId = "@SmartX_Ethio"; // የቻናልህ Username (@ ምልክት እንዳይረሳ)
   const userId = ctx.from.id;
