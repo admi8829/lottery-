@@ -5,189 +5,141 @@ export default {
     if (!env.BOT_TOKEN) return new Response("BOT_TOKEN missing");
     
     const bot = new Telegraf(env.BOT_TOKEN);
-    const CHANNEL_ID = "@SmartX_Ethio"; // ያንተ ቻናል
+    const CHANNEL_ID = "@SmartX_Ethio"; 
 
-    // --- 1. Keyboards ---
-        // --- 1. Keyboards ---
+    // --- 1. Keyboards (Global Scope) ---
     const mainKeyboard = Markup.keyboard([
       ['🎟 New Ticket'],
       ['🎟 My Tickets', '⚙️ Settings'],
       ['🏆 Winners', '💰 Wallet & Invite'],
       ['👥 Invite & Earn', '❓ Help'],
-      ['🌐 Language'] // አዲሱ አዝራር እዚህ ተጨምሯል
-    ]).resize();
-    
-
-    const requestPhoneKeyboard = Markup.keyboard([
-      [Markup.button.contactRequest('📲 ስልክ ቁጥሬን ላክ')]
+      ['🌐 Language']
     ]).resize();
 
     // --- 2. Start Command ---
-// --- 2. Start Command with Force Join ---
-bot.start(async (ctx) => {
-  try {
-    const userId = ctx.from.id;
-    const startPayload = ctx.startPayload;
-    const CHANNEL_ID = "@SmartX_Ethio"; // Your channel username
+    bot.start(async (ctx) => {
+      try {
+        const userId = ctx.from.id;
+        const startPayload = ctx.startPayload;
 
-    // 1. Database Entry: Check if user exists, if not create record
-    const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
-    
-    if (!user) {
-      let referrerId = null;
-      if (startPayload && startPayload.startsWith('ref_')) {
-        const ref = parseInt(startPayload.replace('ref_', ''));
-        if (ref !== userId) referrerId = ref;
-      }
+        let user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
+        
+        if (!user) {
+          let referrerId = null;
+          if (startPayload && startPayload.startsWith('ref_')) {
+            const ref = parseInt(startPayload.replace('ref_', ''));
+            if (ref !== userId) referrerId = ref;
+          }
+          await env.DB.prepare(
+            "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count, language) VALUES (?, ?, ?, ?, ?, ?)"
+          ).bind(userId, ctx.from.first_name, referrerId, 0, 0, 'en').run();
+          user = { user_id: userId, language: 'en', phone: null };
+        }
 
-      await env.DB.prepare(
-        "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, ?, ?)"
-      ).bind(userId, ctx.from.first_name, referrerId, 0, 0).run();
-    }
+        // --- Force Join Check ---
+        try {
+          const member = await ctx.telegram.getChatMember(CHANNEL_ID, userId);
+          const isMember = ['member', 'administrator', 'creator'].includes(member.status);
 
-    // 2. FORCE JOIN CHECK: Verify if user is a member of the channel
-    try {
-      const member = await ctx.telegram.getChatMember(CHANNEL_ID, userId);
-      const isMember = ['member', 'administrator', 'creator'].includes(member.status);
-
-      if (!isMember) {
-        const joinMsg = `
+          if (!isMember) {
+            const joinMsg = `
 👋 <b>Hello ${ctx.from.first_name}!</b>
 
-To use this bot and participate in our lottery, you must join our official channel first.
+To participate in our lottery, you must join our official channel first.
 
-<b>Step 1:</b> Join ${CHANNEL_ID}
-<b>Step 2:</b> Click the "✅ Verify Membership" button below.
+<b>1. Join:</b> ${CHANNEL_ID}
+<b>2. Click:</b> Verify Membership below.
 ━━━━━━━━━━━━━━━━━━`;
+            return ctx.reply(joinMsg, {
+              parse_mode: 'HTML',
+              ...Markup.inlineKeyboard([
+                [Markup.button.url('📢 Join Our Channel', `https://t.me/${CHANNEL_ID.replace('@', '')}`)],
+                [Markup.button.callback('✅ Verify Membership', 'check_join')]
+              ])
+            });
+          }
+        } catch (e) { console.log("Join check error"); }
 
-        return ctx.reply(joinMsg, {
-          parse_mode: 'HTML',
-          ...Markup.inlineKeyboard([
-            [Markup.button.url('📢 Join Our Channel', `https://t.me/${CHANNEL_ID.replace('@', '')}`)],
-            [Markup.button.callback('✅ Verify Membership', 'check_join')]
-          ])
-        });
-      }
-    } catch (err) {
-      console.log("Channel Admin Check Error: Ensure bot is admin in the channel.");
-    }
+        // --- Registration Check ---
+        if (!user.phone) {
+          return ctx.reply("✨ <b>Welcome!</b>\nPlease share your phone number to complete registration.", { 
+            parse_mode: 'HTML', 
+            ...Markup.keyboard([[Markup.button.contactRequest('📲 Share My Phone Number')]]).resize().oneTime()
+          });
+        }
 
-    // 3. REGISTRATION CHECK: If joined but phone is missing
-    if (!user || !user.phone) {
-      const regMsg = `
-✨ <b>Welcome to SmartX Lottery!</b> ✨
-━━━━━━━━━━━━━━━━━━
-Your membership is verified. Now, please share your phone number to complete your registration and start winning!
-━━━━━━━━━━━━━━━━━━`;
+        return ctx.reply(`<b>Welcome back, ${user.name}!</b> 👋`, { parse_mode: 'HTML', ...mainKeyboard });
 
-      return ctx.reply(regMsg, { 
-        parse_mode: 'HTML', 
-        ...Markup.keyboard([
-          [Markup.button.contactRequest('📲 Share My Phone Number')]
-        ]).resize().oneTime()
-      });
-    }
-
-    // 4. MAIN MENU: If everything is completed
-    return ctx.reply(`<b>Welcome back, ${user.name}!</b> 👋\nChoose an option from the menu below.`, { 
-      parse_mode: 'HTML', 
-      ...mainKeyboard 
+      } catch (e) { return ctx.reply("Error: " + e.message); }
     });
 
-  } catch (e) {
-    return ctx.reply("System Error: " + e.message);
-  }
-});
-                                                  
-    
-    // --- 3. Phone Verification & Draw Info Display --
-bot.on('contact', async (ctx) => {
-  try {
-    const userId = ctx.from.id;
-    const contact = ctx.message.contact;
-
-    // 1. የደህንነት ማረጋገጫ
-    if (contact.user_id !== userId) {
-      return ctx.reply("❌ <b>Security Alert:</b> Please send your own contact number!", { parse_mode: 'HTML' });
-    }
-
-    // 2. ዳታቤዝ ላይ ስልክ ቁጥር ማረጋገጥ እና መመዝገብ
-    await env.DB.prepare("UPDATE users SET phone = ?, name = ? WHERE user_id = ?")
-      .bind(contact.phone_number, ctx.from.first_name, userId).run();
-
-    // 3. የተጠቃሚውን ቋንቋ እና ሪፈራል መረጃ ማንበብ
-    const user = await env.DB.prepare("SELECT language, referred_by FROM users WHERE user_id = ?").bind(userId).first();
-    const lang = user?.language || 'en';
-
-    // 4. የሪፈራል ክፍያ (ካለ)
-    if (user && user.referred_by) {
-      await env.DB.prepare("UPDATE users SET balance = balance + 2, invite_count = invite_count + 1 WHERE user_id = ?")
-        .bind(user.referred_by).run();
-      
-      const refAlert = lang === 'am' ? "🎊 <b>አዲስ ሪፈራል!</b> +2 ETB ተጨምሯል።" : "🎊 <b>New Referral!</b> +2 ETB added.";
+    // --- 3. Verify Button Action ---
+    bot.action('check_join', async (ctx) => {
       try {
-        await ctx.telegram.sendMessage(user.referred_by, refAlert, { parse_mode: 'HTML' });
-      } catch (err) {}
-    }
-
-    // 5. ከዳታቤዝ የዕጣ መረጃ ማንበብ (Prize Data from DB)
-    const draw = await env.DB.prepare("SELECT * FROM draw_settings WHERE id = 1").first();
-    
-    // 6. ቋንቋን መሰረት ያደረገ ማራኪ ዲዛይን
-    let successMsg = "";
-    if (lang === 'am') {
-      successMsg = `
-✅ <b>ምዝገባው ተጠናቅቋል!</b> 🔓
-━━━━━━━━━━━━━━━━━━
-እንኳን ደህና መጡ! አካውንትዎ አሁን ንቁ ነው።
-
-🔥 <b>የአሁኑ ንቁ ዕጣ ዝርዝር፡</b>
-🏆 <b>ዕጣ፡</b> <code>${draw?.draw_name || "መደበኛ ዕጣ"}</code>
-
-🎁 <b>የሽልማት ደረጃዎች፡</b>
-🥇 1ኛ ዕጣ: <b>${draw?.prize_1 || "1000 ETB"}</b>
-🥈 2ኛ ዕጣ: <b>${draw?.prize_2 || "500 ETB"}</b>
-🥉 3ኛ ዕጣ: <b>${draw?.prize_3 || "200 ETB"}</b>
-
-📅 <b>የዕጣ ቀን:</b> <code>${draw?.draw_date || "በቅርብ ቀን"}</code>
-━━━━━━━━━━━━━━━━━━
-<i>አሁኑኑ መጫወት ይጀምሩና ቀጣዩ አሸናፊ ይሁኑ!</i>`;
-    } else {
-      successMsg = `
-✅ <b>Verification Complete!</b> 🔓
-━━━━━━━━━━━━━━━━━━
-Your account is now fully active.
-
-🔥 <b>Current Active Draw Details:</b>
-🏆 <b>Draw Name:</b> <code>${draw?.draw_name || "Weekly Big Draw"}</code>
-
-🎁 <b>Prize Tiers:</b>
-🥇 1st Prize: <b>${draw?.prize_1 || "1,000 ETB"}</b>
-🥈 2nd Prize: <b>${draw?.prize_2 || "500 ETB"}</b>
-🥉 3rd Prize: <b>${draw?.prize_3 || "200 ETB"}</b>
-
-📅 <b>Draw Date:</b> <code>${draw?.draw_date || "Soon"}</code>
-━━━━━━━━━━━━━━━━━━
-<i>Start playing now and be the next winner!</i>`;
-    }
-
-    // 7. ወደ ጎን የሰፋ ማራኪ አዝራር (Full Width Inline Button)
-    const extraInfo = Markup.inlineKeyboard([
-        [Markup.button.callback(lang === 'am' ? '📖 እንዴት ነው የምጫወተው? (How to Play)' : '📖 How to Play Guide', 'help_guide')]
-    ]);
-
-    // ⚠️ ማሳሰቢያ፡ mainKeyboard ከላይ በኮድህ ውስጥ በትክክል መገለጹን አረጋግጥ
-    return ctx.reply(successMsg, { 
-      parse_mode: 'HTML', 
-      ...mainKeyboard, // ዋናውን ሜኑ ያመጣዋል
-      ...extraInfo     // ወደ ጎን የሰፋውን አዝራር ያሳያል
+        const member = await ctx.telegram.getChatMember(CHANNEL_ID, ctx.from.id);
+        if (['member', 'administrator', 'creator'].includes(member.status)) {
+          await ctx.answerCbQuery("✅ Verified!");
+          await ctx.deleteMessage();
+          return ctx.reply("✨ <b>Membership Verified!</b>\nNow, please share your phone number:", {
+            parse_mode: 'HTML',
+            ...Markup.keyboard([[Markup.button.contactRequest('📲 Share My Phone Number')]]).resize().oneTime()
+          });
+        } else {
+          return ctx.answerCbQuery("❌ Please join the channel first!", { show_alert: true });
+        }
+      } catch (e) { return ctx.answerCbQuery("Error verifying..."); }
     });
 
-  } catch (e) {
-    return ctx.reply("Error: " + e.message);
+    // --- 4. Phone Verification & Success ---
+    bot.on('contact', async (ctx) => {
+      try {
+        const userId = ctx.from.id;
+        const contact = ctx.message.contact;
+
+        if (contact.user_id !== userId) {
+          return ctx.reply("❌ <b>Security:</b> Please send your own contact!", { parse_mode: 'HTML' });
+        }
+
+        await env.DB.prepare("UPDATE users SET phone = ?, name = ? WHERE user_id = ?")
+          .bind(contact.phone_number, ctx.from.first_name, userId).run();
+
+        const user = await env.DB.prepare("SELECT language, referred_by FROM users WHERE user_id = ?").bind(userId).first();
+        const lang = user?.language || 'en';
+
+        // Referral Logic
+        if (user && user.referred_by) {
+          await env.DB.prepare("UPDATE users SET balance = balance + 2, invite_count = invite_count + 1 WHERE user_id = ?")
+            .bind(user.referred_by).run();
+          try {
+            const refMsg = lang === 'am' ? "🎊 <b>አዲስ ሪፈራል!</b> +2 ETB ተጨምሯል።" : "🎊 <b>New Referral!</b> +2 ETB added.";
+            await ctx.telegram.sendMessage(user.referred_by, refMsg, { parse_mode: 'HTML' });
+          } catch (err) {}
+        }
+
+        // Success Design
+        const successMsg = lang === 'am' ? 
+          `✅ <b>ምዝገባው ተጠናቅቋል!</b> 🔓\n━━━━━━━━━━━━━━━━━━\nእንኳን ደህና መጡ! አካውንትዎ አሁን ንቁ ነው።\nአሁኑኑ መጫወት ይጀምሩና አሸናፊ ይሁኑ! 🏆` :
+          `✅ <b>Registration Complete!</b> 🔓\n━━━━━━━━━━━━━━━━━━\nWelcome! Your account is now active.\nStart playing now and be the next winner! 🏆`;
+
+        return ctx.reply(successMsg, { 
+          parse_mode: 'HTML', 
+          ...mainKeyboard,
+          ...Markup.inlineKeyboard([[Markup.button.callback(lang === 'am' ? '📖 እንዴት ነው የምጫወተው?' : '📖 How to Play Guide', 'help_guide')]])
+        });
+
+      } catch (e) { return ctx.reply("Error: " + e.message); }
+    });
+
+    // Webhook handle
+    const { body } = request;
+    if (request.method === 'POST') {
+      const update = await request.json();
+      await bot.handleUpdate(update);
+    }
+    return new Response("OK");
   }
-});
-      
+};
+              
     
     // --- [ 1. የአድሚን ሜኑ ትዕዛዝ ] ---
 bot.command('admin_menu', async (ctx) => {
