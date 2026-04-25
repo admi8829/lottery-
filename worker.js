@@ -254,7 +254,7 @@ Your Link: <code>${inviteLink}</code>`;
 
 
     bot.action('admin_draw_winners', async (ctx) => {
-  const adminId = 123456789; // 👈 ያንተን ትክክለኛ የቴሌግራም ID እዚህ ይተኩ
+  const adminId = 8344169004; // 👈 ያንተን ትክክለኛ የቴሌግራም ID እዚህ ይተኩ
   if (ctx.from.id !== adminId) return ctx.answerCbQuery("Unauthorized!");
 
   try {
