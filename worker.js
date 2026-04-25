@@ -130,6 +130,55 @@ Your account is created. To start earning and buying tickets, please <b>Join our
   }
 });
 
+ bot.hears('🎟 New Ticket', async (ctx) => {
+  const userId = ctx.from.id;
+  
+  try {
+    // 1. የሰውንየውን ብር ቼክ ማድረግ
+    const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?")
+      .bind(userId)
+      .first();
+
+    const balance = user?.balance || 0;
+
+    // --- ሁኔታ 1: ብር ካለው ---
+    if (balance >= 10) {
+      const confirmKeyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Yes, Buy Now (10 ETB)', 'buy_with_wallet')],
+        [Markup.button.callback('❌ Cancel', 'back_to_wallet')]
+      ]);
+
+      return ctx.reply(`
+<b>🎟 New Ticket Purchase</b>
+━━━━━━━━━━━━━━━━━━
+Your current balance: <b>${balance} ETB</b>
+Ticket Price: <b>10 ETB</b>
+
+Do you want to use your balance to buy 1 ticket?`, { parse_mode: 'HTML', ...confirmKeyboard });
+    } 
+
+    // --- ሁኔታ 2: ብር ከሌለው (የአከፋፈል መመሪያውን እዚህ ያሳየዋል) ---
+    else {
+      const depositKeyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('📥 How to Deposit Money', 'show_deposit_info')],
+        [Markup.button.callback('👥 Invite Friends (Earn 2 ETB)', 'view_invite_link')]
+      ]);
+
+      return ctx.reply(`
+<b>❌ Insufficient Balance!</b>
+━━━━━━━━━━━━━━━━━━
+To buy a ticket, you need at least <b>10 ETB</b>.
+Your current balance is: <b>${balance} ETB</b>
+
+Please deposit money or invite friends to earn enough balance.`, { parse_mode: 'HTML', ...depositKeyboard });
+    }
+
+  } catch (e) {
+    return ctx.reply("Error: " + e.message);
+  }
+});
+    
+
 
   bot.hears('👥 Invite & Earn', async (ctx) => {
   const userId = ctx.from.id;
