@@ -107,18 +107,22 @@ Your account is now fully active.
       }
     });
 
-    
-    bot.command('admin_menu', async (ctx) => {
-  const adminId = 123456789; // ያንተ ID
+    // --- [ 1. የአድሚን ሜኑ ትዕዛዝ ] ---
+bot.command('admin_menu', async (ctx) => {
+  const adminId = 8344169004; // ያንተ ID በትክክል ተገብቷል
   if (ctx.from.id !== adminId) return;
 
-  return ctx.reply("የአድሚን ገጽ፡", Markup.inlineKeyboard([
-    [Markup.button.callback('🎰 ዕጣውን አሁን አውጣ', 'admin_draw_winners')]
-  ]));
+  return ctx.reply("<b>🛠 የአድሚን መቆጣጠሪያ ገጽ</b>\n\nከታች ያለውን አዝራር በመጫን የዙሩን 3 አሸናፊዎች በዘፈቀደ ማውጣት ይችላሉ።", {
+    parse_mode: 'HTML',
+    ...Markup.inlineKeyboard([
+      [Markup.button.callback('🎰 ዕጣውን አሁን አውጣ', 'admin_draw_winners')]
+    ])
+  });
 });
 
- bot.action('admin_draw_winners', async (ctx) => {
-  const adminId = 8344169004; // 👈 ያንተን ትክክለኛ የቴሌግራም ID እዚህ ይተኩ
+// --- [ 2. ዕጣውን የሚያወጣው ተግባር (Action) ] ---
+bot.action('admin_draw_winners', async (ctx) => {
+  const adminId = 8344169004; // ያንተ ID እዚህም ተስተካክሏል
   if (ctx.from.id !== adminId) return ctx.answerCbQuery("Unauthorized!");
 
   try {
@@ -132,14 +136,16 @@ Your account is now fully active.
        ORDER BY RANDOM() LIMIT 3`
     ).all();
 
+    // ቢያንስ 3 ሰው መኖሩን ቼክ ማድረግ
     if (!winners.results || winners.results.length < 3) {
-      return ctx.reply("❌ ዕጣ ለማውጣት ቢያንስ 3 የተለያዩ ቲኬቶች መሸጥ አለባቸው።");
+      return ctx.reply("❌ ዕጣ ለማውጣት ቢያንስ 3 'Active' ቲኬቶች መሸጥ አለባቸው።");
     }
 
+    // የሽልማት አይነቶችን ከዳታቤዝ መውሰድ
     const prizes = [drawSettings.prize_1, drawSettings.prize_2, drawSettings.prize_3];
     let announcementText = `🎊 <b>የዕጣ ውጤት መግለጫ</b> 🎊\n━━━━━━━━━━━━━━━━━━\n<b>🏆 እጣው፡</b> ${drawSettings.draw_name}\n\n`;
 
-    // 2. አሸናፊዎችን መመዝገብ እና ማሳወቅ
+    // 2. አሸናፊዎችን በ Loop መመዝገብ እና ማሳወቅ
     for (let i = 0; i < winners.results.length; i++) {
       const winner = winners.results[i];
       const prize = prizes[i];
@@ -149,28 +155,33 @@ Your account is now fully active.
         "INSERT INTO winners (user_id, ticket_number, prize_amount) VALUES (?, ?, ?)"
       ).bind(winner.user_id, winner.ticket_number, prize).run();
 
-      // ለአሸናፊው የግል መልዕክት መላክ
+      // ለአሸናፊው የግል መልዕክት (Inbox) መላክ
       try {
         await ctx.telegram.sendMessage(winner.user_id, 
           `🎉 <b>እንኳን ደስ አለዎት!</b>\nየእርስዎ ቲኬት <b>#${winner.ticket_number}</b> የ <b>${prize}</b> አሸናፊ ሆኗል!`, 
           { parse_mode: 'HTML' });
-      } catch (e) {}
+      } catch (e) {
+        console.log(`Notification failed for user ${winner.user_id}`);
+      }
 
-      announcementText += `${i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'} <b>${prize} አሸናፊ፡</b>\n👤 ${winner.name} (🎫 #${winner.ticket_number})\n\n`;
+      // ውጤቱን ለጠቅላላ ማስታወቂያ ማዘጋጀት
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
+      announcementText += `${medal} <b>${prize} አሸናፊ፡</b>\n👤 ${winner.name} (🎫 #${winner.ticket_number})\n\n`;
     }
 
-    // 3. ሁሉንም የዙሩን ቲኬቶች Expired ማድረግ
+    // 3. ሁሉንም የዙሩን ቲኬቶች Expired ማድረግ (በጣም አስፈላጊ!)
     await env.DB.prepare("UPDATE tickets SET status = 'expired' WHERE status = 'active'").run();
 
     announcementText += `━━━━━━━━━━━━━━━━━━\n<i>እንኳን ደስ አላችሁ! ለሁሉም ተጠቃሚዎች ውጤቱ ተልኳል።</i>`;
     
-    // ለሁሉም ተጠቃሚዎች ውጤቱን መላክ (Broadcast) መደረግ ይችላል
+    // ለአድሚኑ ውጤቱን ማሳየት
     return ctx.reply(announcementText, { parse_mode: 'HTML' });
 
   } catch (e) {
-    return ctx.reply("Error: " + e.message);
+    return ctx.reply("Error during draw: " + e.message);
   }
 });
+  
     
 
  bot.hears('🎟 New Ticket', async (ctx) => {
