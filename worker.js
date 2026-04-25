@@ -252,6 +252,63 @@ Your Link: <code>${inviteLink}</code>`;
   }
 });
 
+
+    bot.action('admin_draw_winners', async (ctx) => {
+  const adminId = 123456789; // 👈 ያንተን ትክክለኛ የቴሌግራም ID እዚህ ይተኩ
+  if (ctx.from.id !== adminId) return ctx.answerCbQuery("Unauthorized!");
+
+  try {
+    // 1. የዕጣ መረጃውን እና 3 አሸናፊዎችን ከዳታቤዝ በዘፈቀደ መምረጥ
+    const drawSettings = await env.DB.prepare("SELECT * FROM draw_settings WHERE id = 1").first();
+    const winners = await env.DB.prepare(
+      `SELECT t.ticket_number, t.user_id, u.name 
+       FROM tickets t 
+       JOIN users u ON t.user_id = u.user_id 
+       WHERE t.status = 'active' 
+       ORDER BY RANDOM() LIMIT 3`
+    ).all();
+
+    if (!winners.results || winners.results.length < 3) {
+      return ctx.reply("❌ ዕጣ ለማውጣት ቢያንስ 3 የተለያዩ ቲኬቶች መሸጥ አለባቸው።");
+    }
+
+    const prizes = [drawSettings.prize_1, drawSettings.prize_2, drawSettings.prize_3];
+    let announcementText = `🎊 <b>የዕጣ ውጤት መግለጫ</b> 🎊\n━━━━━━━━━━━━━━━━━━\n<b>🏆 እጣው፡</b> ${drawSettings.draw_name}\n\n`;
+
+    // 2. አሸናፊዎችን መመዝገብ እና ማሳወቅ
+    for (let i = 0; i < winners.results.length; i++) {
+      const winner = winners.results[i];
+      const prize = prizes[i];
+
+      // በ Winners Table መመዝገብ
+      await env.DB.prepare(
+        "INSERT INTO winners (user_id, ticket_number, prize_amount) VALUES (?, ?, ?)"
+      ).bind(winner.user_id, winner.ticket_number, prize).run();
+
+      // ለአሸናፊው የግል መልዕክት መላክ
+      try {
+        await ctx.telegram.sendMessage(winner.user_id, 
+          `🎉 <b>እንኳን ደስ አለዎት!</b>\nየእርስዎ ቲኬት <b>#${winner.ticket_number}</b> የ <b>${prize}</b> አሸናፊ ሆኗል!`, 
+          { parse_mode: 'HTML' });
+      } catch (e) {}
+
+      announcementText += `${i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'} <b>${prize} አሸናፊ፡</b>\n👤 ${winner.name} (🎫 #${winner.ticket_number})\n\n`;
+    }
+
+    // 3. ሁሉንም የዙሩን ቲኬቶች Expired ማድረግ
+    await env.DB.prepare("UPDATE tickets SET status = 'expired' WHERE status = 'active'").run();
+
+    announcementText += `━━━━━━━━━━━━━━━━━━\n<i>እንኳን ደስ አላችሁ! ለሁሉም ተጠቃሚዎች ውጤቱ ተልኳል።</i>`;
+    
+    // ለሁሉም ተጠቃሚዎች ውጤቱን መላክ (Broadcast) መደረግ ይችላል
+    return ctx.reply(announcementText, { parse_mode: 'HTML' });
+
+  } catch (e) {
+    return ctx.reply("Error: " + e.message);
+  }
+});
+    
+
 // 2. Buy Ticket (በዳታቤዝ የሚመዘግብ)
 bot.action('buy_with_wallet', async (ctx) => {
   const userId = ctx.from.id;
