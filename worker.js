@@ -20,41 +20,82 @@ export default {
     ]).resize();
 
     // --- 2. Start Command ---
-    bot.start(async (ctx) => {
-      try {
-        const userId = ctx.from.id;
-        const startPayload = ctx.startPayload;
-        
-        const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
+// --- 2. Start Command with Force Join ---
+bot.start(async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    const startPayload = ctx.startPayload;
+    const CHANNEL_ID = "@SmartX_Ethio"; // Your channel username
 
-        if (user && user.phone) {
-          return ctx.reply(`<b>Welcome back, ${user.name}!</b> 👋`, { parse_mode: 'HTML', ...mainKeyboard });
-        }
+    // 1. Database Entry: Check if user exists, if not create record
+    const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
+    
+    if (!user) {
+      let referrerId = null;
+      if (startPayload && startPayload.startsWith('ref_')) {
+        const ref = parseInt(startPayload.replace('ref_', ''));
+        if (ref !== userId) referrerId = ref;
+      }
 
-        let referrerId = null;
-        if (startPayload && startPayload.startsWith('ref_')) {
-          const ref = parseInt(startPayload.replace('ref_', ''));
-          if (ref !== userId) referrerId = ref;
-        }
+      await env.DB.prepare(
+        "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, ?, ?)"
+      ).bind(userId, ctx.from.first_name, referrerId, 0, 0).run();
+    }
 
-        await env.DB.prepare(
-          "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, ?, ?)"
-        ).bind(userId, ctx.from.first_name, referrerId, 0, 0).run();
+    // 2. FORCE JOIN CHECK: Verify if user is a member of the channel
+    try {
+      const member = await ctx.telegram.getChatMember(CHANNEL_ID, userId);
+      const isMember = ['member', 'administrator', 'creator'].includes(member.status);
 
-        const welcomeMsg = `
-✨ <b>Welcome to SmartX Lottery!</b> ✨
-━━━━━━━━━━━━━━━━━━
-To start winning amazing prizes, please complete your registration.
+      if (!isMember) {
+        const joinMsg = `
+👋 <b>Hello ${ctx.from.first_name}!</b>
 
-<b>1. Join our channel:</b> ${CHANNEL_ID}
-<b>2. Share your phone number</b> using the button below.
+To use this bot and participate in our lottery, you must join our official channel first.
+
+<b>Step 1:</b> Join ${CHANNEL_ID}
+<b>Step 2:</b> Click the "✅ Verify Membership" button below.
 ━━━━━━━━━━━━━━━━━━`;
 
-        return ctx.reply(welcomeMsg, { parse_mode: 'HTML', ...requestPhoneKeyboard });
-      } catch (e) {
-        return ctx.reply("Error: " + e.message);
+        return ctx.reply(joinMsg, {
+          parse_mode: 'HTML',
+          ...Markup.inlineKeyboard([
+            [Markup.button.url('📢 Join Our Channel', `https://t.me/${CHANNEL_ID.replace('@', '')}`)],
+            [Markup.button.callback('✅ Verify Membership', 'check_join')]
+          ])
+        });
       }
+    } catch (err) {
+      console.log("Channel Admin Check Error: Ensure bot is admin in the channel.");
+    }
+
+    // 3. REGISTRATION CHECK: If joined but phone is missing
+    if (!user || !user.phone) {
+      const regMsg = `
+✨ <b>Welcome to SmartX Lottery!</b> ✨
+━━━━━━━━━━━━━━━━━━
+Your membership is verified. Now, please share your phone number to complete your registration and start winning!
+━━━━━━━━━━━━━━━━━━`;
+
+      return ctx.reply(regMsg, { 
+        parse_mode: 'HTML', 
+        ...Markup.keyboard([
+          [Markup.button.contactRequest('📲 Share My Phone Number')]
+        ]).resize().oneTime()
+      });
+    }
+
+    // 4. MAIN MENU: If everything is completed
+    return ctx.reply(`<b>Welcome back, ${user.name}!</b> 👋\nChoose an option from the menu below.`, { 
+      parse_mode: 'HTML', 
+      ...mainKeyboard 
     });
+
+  } catch (e) {
+    return ctx.reply("System Error: " + e.message);
+  }
+});
+                                                  
     
     // --- 3. Phone Verification & Draw Info Display ---
     bot.on('contact', async (ctx) => {
