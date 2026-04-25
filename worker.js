@@ -106,59 +106,88 @@ bot.on('contact', async (ctx) => {
     const userId = ctx.from.id;
     const contact = ctx.message.contact;
 
+    // 1. የደህንነት ማረጋገጫ
     if (contact.user_id !== userId) {
       return ctx.reply("❌ <b>Security Alert:</b> Please send your own contact number!", { parse_mode: 'HTML' });
     }
 
-    // 1. መረጃውን ማዘመን
+    // 2. ዳታቤዝ ላይ ስልክ ቁጥር ማረጋገጥ እና መመዝገብ
     await env.DB.prepare("UPDATE users SET phone = ?, name = ? WHERE user_id = ?")
       .bind(contact.phone_number, ctx.from.first_name, userId).run();
 
-    // 2. የተጠቃሚ መረጃን ማምጣት
+    // 3. የተጠቃሚውን ቋንቋ እና ሪፈራል መረጃ ማንበብ
     const user = await env.DB.prepare("SELECT language, referred_by FROM users WHERE user_id = ?").bind(userId).first();
     const lang = user?.language || 'en';
 
-    // 3. ሪፈራል ክፍያ
+    // 4. የሪፈራል ክፍያ (ካለ)
     if (user && user.referred_by) {
       await env.DB.prepare("UPDATE users SET balance = balance + 2, invite_count = invite_count + 1 WHERE user_id = ?")
         .bind(user.referred_by).run();
-      const refMsg = lang === 'am' ? "🎊 <b>አዲስ ሪፈራል!</b> +2 ETB ተጨምሯል።" : "🎊 <b>New Referral!</b> +2 ETB added.";
-      try { await ctx.telegram.sendMessage(user.referred_by, refMsg, { parse_mode: 'HTML' }); } catch (err) {}
+      
+      const refAlert = lang === 'am' ? "🎊 <b>አዲስ ሪፈራል!</b> +2 ETB ተጨምሯል።" : "🎊 <b>New Referral!</b> +2 ETB added.";
+      try {
+        await ctx.telegram.sendMessage(user.referred_by, refAlert, { parse_mode: 'HTML' });
+      } catch (err) {}
     }
 
-    // 4. የዕጣ መረጃ
+    // 5. ከዳታቤዝ የዕጣ መረጃ ማንበብ (Prize Data from DB)
     const draw = await env.DB.prepare("SELECT * FROM draw_settings WHERE id = 1").first();
     
-    // 5. ማራኪ መልዕክት (በቋንቋው)
-    let successMsg = lang === 'am' 
-      ? `✅ <b>ምዝገባው ተጠናቅቋል!</b>\n━━━━━━━━━━━━━━━━━━\n🏆 <b>ዕጣ:</b> ${draw?.draw_name || "መደበኛ"}\n🥇 1ኛ: <b>${draw?.prize_1}</b> | 🥈 2ኛ: <b>${draw?.prize_2}</b>\n📅 <b>ቀን:</b> ${draw?.draw_date}\n━━━━━━━━━━━━━━━━━━`
-      : `✅ <b>Verification Complete!</b>\n━━━━━━━━━━━━━━━━━━\n🏆 <b>Draw:</b> ${draw?.draw_name || "Regular"}\n🥇 1st: <b>${draw?.prize_1}</b> | 🥈 2nd: <b>${draw?.prize_2}</b>\n📅 <b>Date:</b> ${draw?.draw_date}\n━━━━━━━━━━━━━━━━━━`;
+    // 6. ቋንቋን መሰረት ያደረገ ማራኪ ዲዛይን
+    let successMsg = "";
+    if (lang === 'am') {
+      successMsg = `
+✅ <b>ምዝገባው ተጠናቅቋል!</b> 🔓
+━━━━━━━━━━━━━━━━━━
+እንኳን ደህና መጡ! አካውንትዎ አሁን ንቁ ነው።
 
-    // 6. ወደ ጎን የሰፋ Inline Button (Horizontal Layout)
+🔥 <b>የአሁኑ ንቁ ዕጣ ዝርዝር፡</b>
+🏆 <b>ዕጣ፡</b> <code>${draw?.draw_name || "መደበኛ ዕጣ"}</code>
+
+🎁 <b>የሽልማት ደረጃዎች፡</b>
+🥇 1ኛ ዕጣ: <b>${draw?.prize_1 || "1000 ETB"}</b>
+🥈 2ኛ ዕጣ: <b>${draw?.prize_2 || "500 ETB"}</b>
+🥉 3ኛ ዕጣ: <b>${draw?.prize_3 || "200 ETB"}</b>
+
+📅 <b>የዕጣ ቀን:</b> <code>${draw?.draw_date || "በቅርብ ቀን"}</code>
+━━━━━━━━━━━━━━━━━━
+<i>አሁኑኑ መጫወት ይጀምሩና ቀጣዩ አሸናፊ ይሁኑ!</i>`;
+    } else {
+      successMsg = `
+✅ <b>Verification Complete!</b> 🔓
+━━━━━━━━━━━━━━━━━━
+Your account is now fully active.
+
+🔥 <b>Current Active Draw Details:</b>
+🏆 <b>Draw Name:</b> <code>${draw?.draw_name || "Weekly Big Draw"}</code>
+
+🎁 <b>Prize Tiers:</b>
+🥇 1st Prize: <b>${draw?.prize_1 || "1,000 ETB"}</b>
+🥈 2nd Prize: <b>${draw?.prize_2 || "500 ETB"}</b>
+🥉 3rd Prize: <b>${draw?.prize_3 || "200 ETB"}</b>
+
+📅 <b>Draw Date:</b> <code>${draw?.draw_date || "Soon"}</code>
+━━━━━━━━━━━━━━━━━━
+<i>Start playing now and be the next winner!</i>`;
+    }
+
+    // 7. ወደ ጎን የሰፋ ማራኪ አዝራር (Full Width Inline Button)
     const extraInfo = Markup.inlineKeyboard([
-        [
-          Markup.button.callback(lang === 'am' ? '📖 መመሪያ' : '📖 Guide', 'help_guide'),
-          Markup.button.callback(lang === 'am' ? '🎟 ቲኬት ቁረጥ' : '🎟 Buy Ticket', 'buy_with_wallet')
-        ]
+        [Markup.button.callback(lang === 'am' ? '📖 እንዴት ነው የምጫወተው? (How to Play)' : '📖 How to Play Guide', 'help_guide')]
     ]);
 
-    // 7. ዋናውን Reply Keyboard አብሮ መላክ (ይህ ነው ወደ ቀጣይ የሚያሳልፈው)
+    // ⚠️ ማሳሰቢያ፡ mainKeyboard ከላይ በኮድህ ውስጥ በትክክል መገለጹን አረጋግጥ
     return ctx.reply(successMsg, { 
       parse_mode: 'HTML', 
-      ...extraInfo,
-      ...Markup.keyboard([
-        ['🎟 New Ticket'],
-        ['🎟 My Tickets', '⚙️ Settings'],
-        ['🏆 Winners', '💰 Wallet & Invite'],
-        ['👥 Invite & Earn', '❓ Help'],
-        ['🌐 Language']
-      ]).resize() // .resize() ወደ ጎን እንዲሰፋ ያደርገዋል
+      ...mainKeyboard, // ዋናውን ሜኑ ያመጣዋል
+      ...extraInfo     // ወደ ጎን የሰፋውን አዝራር ያሳያል
     });
 
   } catch (e) {
     return ctx.reply("Error: " + e.message);
   }
 });
+      
     
     // --- [ 1. የአድሚን ሜኑ ትዕዛዝ ] ---
 bot.command('admin_menu', async (ctx) => {
