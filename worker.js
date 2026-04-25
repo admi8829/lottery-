@@ -459,6 +459,15 @@ bot.action('request_withdraw', async (ctx) => {
   }
 });
 
+  bot.action('view_invite_link', async (ctx) => {
+  const userId = ctx.from.id;
+  const botUsername = ctx.botInfo.username;
+  const inviteLink = `https://t.me/${botUsername}?start=ref_${userId}`;
+  
+  await ctx.answerCbQuery();
+  return ctx.reply(`<b>🔗 Your Invite Link:</b>\n<code>${inviteLink}</code>\n\nShare this and get 2 ETB for every join!`, { parse_mode: 'HTML' });
+});
+    
  bot.action('update_profile', (ctx) => {
   const updateMessage = `
 <b>👤 Update Your Profile</b>
