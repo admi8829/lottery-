@@ -115,6 +115,37 @@ Manage your account details and payment methods below.
   });
 });
 
+  bot.hears('💰 Wallet & Invite', async (ctx) => {
+  const userId = ctx.from.id;
+  const user = await env.DB.prepare("SELECT balance, invite_count FROM users WHERE user_id = ?").bind(userId).first();
+
+  const balance = user?.balance || 0;
+  const invites = user?.invite_count || 0;
+  const botUsername = ctx.botInfo.username;
+  const inviteLink = `https://t.me/${botUsername}?start=ref_${userId}`;
+
+  const message = `
+<b>👛 Your Wallet & Invites</b>
+━━━━━━━━━━━━━━━━━━
+<b>💰 Balance:</b> ${balance} ETB
+<b>👥 Total Invites:</b> ${invites} users
+━━━━━━━━━━━━━━━━━━
+<b>🎁 Invite & Earn:</b>
+Share your link and get <b>2 ETB</b> for every friend who joins!
+Your Link: <code>${inviteLink}</code>
+
+<i>You can use your balance to buy Tickets or Withdraw.</i>`;
+
+  const keyboard = Markup.inlineKeyboard([
+    [Markup.button.callback('🎟 Buy Ticket (10 ETB)', 'buy_with_wallet')],
+    [Markup.button.callback('💸 Withdraw Money', 'request_withdraw')],
+    [Markup.button.callback('📥 Deposit Money', 'show_deposit_info')]
+  ]);
+
+  return ctx.reply(message, { parse_mode: 'HTML', ...keyboard });
+});
+    
+
 // Back to settings action (ለ Inline Buttons መልሶ መመለሻ እንዲሆን)
 bot.action('back_to_settings', async (ctx) => {
   const settingsKeyboard = Markup.inlineKeyboard([
@@ -130,8 +161,45 @@ bot.action('back_to_settings', async (ctx) => {
   });
 });
     
+
+ bot.action('buy_with_wallet', async (ctx) => {
+  const userId = ctx.from.id;
+  const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(userId).first();
+
+  if (user.balance < 10) {
+    return ctx.answerCbQuery("❌ Insufficient balance! You need 10 ETB.", { show_alert: true });
+  }
+
+  // 10 ብር መቀነስ
+  await env.DB.prepare("UPDATE users SET balance = balance - 10 WHERE user_id = ?").bind(userId).run();
+
+  // እዚህ ጋር ቲኬት የመፍጠር ስራ ይሰራል (ለምሳሌ Random ቁጥር መስጠት)
+  const ticketNumber = Math.floor(100000 + Math.random() * 900000);
+  
+  return ctx.reply(`✅ <b>Ticket Purchased!</b>\n10 ETB deducted from wallet.\nYour Ticket Number: <b>#${ticketNumber}</b>`, { parse_mode: 'HTML' });
+});
+
+    // Deposit መረጃ ማሳያ
+bot.action('show_deposit_info', (ctx) => {
+  const depositText = `
+<b>📥 How to Deposit</b>
+━━━━━━━━━━━━━━━━━━
+1. Send the amount you want to:
+   - <b>Telebirr:</b> <code>0911223344</code>
+   - <b>CBE Birr:</b> <code>0911223344</code>
+2. Send the <b>Screenshot</b> of the receipt to @AdminUsername.
+3. Once verified, your wallet balance will be updated.
+━━━━━━━━━━━━━━━━━━`;
+  return ctx.reply(depositText, { parse_mode: 'HTML' });
+});
+
+// Withdrawal ጥያቄ
+bot.action('request_withdraw', async (ctx) => {
+  return ctx.reply("To withdraw, please contact @AdminUsername with your registered phone number and the amount you want to withdraw.");
+});
     
 
+    
   bot.action('check_join', async (ctx) => {
   const channelId = "@SmartX_Ethio"; // የቻናልህ Username (@ ምልክት እንዳይረሳ)
   const userId = ctx.from.id;
