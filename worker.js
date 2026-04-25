@@ -295,7 +295,71 @@ bot.action('buy_with_wallet', async (ctx) => {
     return ctx.answerCbQuery("🚨 System Busy. Please try again in a moment.", { show_alert: true });
   }
 });
-  
+
+    bot.action('view_my_tickets', async (ctx) => {
+  const userId = ctx.from.id;
+
+  try {
+    // 1. Fetch all tickets for this user from DB
+    const { results } = await env.DB.prepare(
+      "SELECT ticket_number, purchase_date FROM tickets WHERE user_id = ? ORDER BY purchase_date DESC"
+    ).bind(userId).all();
+
+    await ctx.answerCbQuery();
+
+    if (!results || results.length === 0) {
+      return ctx.editMessageText(
+        "<b>📂 MY TICKETS</b>\n━━━━━━━━━━━━━━━━━━\n" +
+        "You haven't purchased any tickets yet.\n\n" +
+        "Invite friends to earn <b>2 ETB</b> or deposit money to start playing!",
+        {
+          parse_mode: 'HTML',
+          ...Markup.inlineKeyboard([
+            [Markup.button.callback('🎟 Buy Your First Ticket', 'buy_with_wallet')],
+            [Markup.button.callback('🔙 Back to Wallet', 'back_to_wallet')]
+          ])
+        }
+      );
+    }
+
+ // 2. Build the ticket list string
+    let ticketList = `<b>📂 MY TICKETS (${results.length})</b>\n`;
+    ticketList += `━━━━━━━━━━━━━━━━━━\n`;
+    ticketList += `<i>Here are your officially registered entries:</i>\n\n`;
+
+    results.forEach((ticket, index) => {
+      // Formatting the date (Optional: simplified)
+      const date = new Date(ticket.purchase_date).toLocaleDateString();
+      ticketList += `<b>${index + 1}.</b> <code>#${ticket.ticket_number}</code>  |  📅 ${date}\n`;
+    });
+
+    ticketList += `\n━━━━━━━━━━━━━━━━━━\n`;
+    ticketList += `<b>Status:</b> All entries are <code>Active ✅</code>`;
+
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('🎟 Buy More Tickets', 'buy_with_wallet')],
+      [Markup.button.callback('🔙 Back to Wallet', 'back_to_wallet')]
+    ]);
+
+    return ctx.editMessageText(ticketList, {
+      parse_mode: 'HTML',
+      ...keyboard
+    });
+
+  } catch (e) {
+    console.error(e);
+    return ctx.reply("❌ Error fetching your tickets. Please try again.");
+  }
+});
+
+// Also handle the "🎟 My Tickets" button from the main Reply Keyboard
+bot.hears('🎟 My Tickets', async (ctx) => {
+    // We can just trigger the same action logic
+    return ctx.reply("Fetching your tickets...", Markup.inlineKeyboard([
+        [Markup.button.callback('Click to View My Tickets', 'view_my_tickets')]
+    ]));
+});
+      
 
 // 3. Deposit Info (editMessageText ተጠቀምንበት)
 bot.action('show_deposit_info', async (ctx) => {
