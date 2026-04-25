@@ -226,7 +226,58 @@ bot.action('admin_draw_winners', async (ctx) => {
   }
 });
   
+    // 1. የቋንቋ አዝራሩ ሲጫን (bot.hears)
+bot.hears('🌐 Language', async (ctx) => {
+  const langKeyboard = Markup.inlineKeyboard([
+    [Markup.button.callback('🇺🇸 English', 'set_lang_en')],
+    [Markup.button.callback('🇪🇹 አማርኛ', 'set_lang_am')]
+  ]);
+
+  const langMsg = `
+<b>🌐 Select Your Language / ቋንቋ ይምረጡ</b>
+━━━━━━━━━━━━━━━━━━
+Please choose your preferred language to continue.
+እባክዎ የሚፈልጉትን ቋንቋ ከታች ይምረጡ።
+━━━━━━━━━━━━━━━━━━`;
+
+  return ctx.reply(langMsg, {
+    parse_mode: 'HTML',
+    ...langKeyboard
+  });
+});
+
+// 2. English ሲመረጥ (Action)
+bot.action('set_lang_en', async (ctx) => {
+  const userId = ctx.from.id;
+  try {
+    // ዳታቤዝ ላይ 'en' ብሎ መመዝገብ
+    await env.DB.prepare("UPDATE users SET language = 'en' WHERE user_id = ?").bind(userId).run();
     
+    await ctx.answerCbQuery("✅ Language set to English");
+    return ctx.editMessageText("<b>✅ Success!</b>\nYour language has been set to <b>English</b>. All future messages will be in English.", { 
+      parse_mode: 'HTML' 
+    });
+  } catch (e) {
+    return ctx.answerCbQuery("Error updating language");
+  }
+});
+
+// 3. አማርኛ ሲመረጥ (Action)
+bot.action('set_lang_am', async (ctx) => {
+  const userId = ctx.from.id;
+  try {
+    // ዳታቤዝ ላይ 'am' ብሎ መመዝገብ
+    await env.DB.prepare("UPDATE users SET language = 'am' WHERE user_id = ?").bind(userId).run();
+    
+    await ctx.answerCbQuery("✅ ቋንቋው ወደ አማርኛ ተቀይሯል");
+    return ctx.editMessageText("<b>✅ ተሳክቷል!</b>\nቋንቋዎ ወደ <b>አማርኛ</b> ተቀይሯል። ከእንግዲህ ቦቱ በአማርኛ መልዕክት ይልክልዎታል።", { 
+      parse_mode: 'HTML' 
+    });
+  } catch (e) {
+    return ctx.answerCbQuery("ስህተት ተከስቷል");
+  }
+});
+      
 
  bot.hears('🎟 New Ticket', async (ctx) => {
   const userId = ctx.from.id;
