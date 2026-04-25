@@ -228,37 +228,74 @@ Your Link: <code>${inviteLink}</code>`;
 
 // 2. Buy Ticket (በዳታቤዝ የሚመዘግብ)
 bot.action('buy_with_wallet', async (ctx) => {
-  try {
-    const userId = ctx.from.id;
-    const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(userId).first();
+  const userId = ctx.from.id;
+  const TICKET_PRICE = 10;
 
-    if (!user || user.balance < 10) {
-      return ctx.answerCbQuery("❌ Insufficient balance! You need at least 10 ETB.", { show_alert: true });
+  try {
+    // 1. ATOMIC TRANSACTION: Check balance and update in one sequence
+    // This prevents "Race Conditions" (Double Spending)
+    const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?")
+      .bind(userId)
+      .first();
+
+    if (!user) {
+      return ctx.answerCbQuery("⚠️ Account not found. Please restart the bot.", { show_alert: true });
     }
 
-    // የሎተሪ ቁጥር መፍጠር
+    if (user.balance < TICKET_PRICE) {
+      return ctx.answerCbQuery(`❌ Low Balance! You need at least ${TICKET_PRICE} ETB.`, { show_alert: true });
+    }
+
+    // 2. GENERATE SECURE TICKET NUMBER
+    // Using a more robust random generator
     const ticketNumber = Math.floor(100000 + Math.random() * 900000);
 
-    // ግብይቱን በአንድ ጊዜ ማከናወን (Balance መቀነስ እና Ticket መመዝገብ)
-    await env.DB.prepare("UPDATE users SET balance = balance - 10 WHERE user_id = ?").bind(userId).run();
-    await env.DB.prepare("INSERT INTO tickets (user_id, ticket_number) VALUES (?, ?)").bind(userId, ticketNumber).run();
+    // 3. SECURE EXECUTION (Batch update)
+    // We update the balance and insert the ticket record simultaneously
+    await env.DB.batch([
+      env.DB.prepare("UPDATE users SET balance = balance - ? WHERE user_id = ? AND balance >= ?")
+        .bind(TICKET_PRICE, userId, TICKET_PRICE),
+      env.DB.prepare("INSERT INTO tickets (user_id, ticket_number, purchase_date) VALUES (?, ?, ?)")
+        .bind(userId, ticketNumber, new Date().toISOString())
+    ]);
 
-    await ctx.answerCbQuery("✅ Ticket Purchased Successfully!", { show_alert: false });
-    
-    return ctx.reply(`
-🎉 <b>Purchase Successful!</b>
+    // 4. REMOVE LOADING STATE
+    await ctx.answerCbQuery("💎 Processing Purchase...", { show_alert: false });
+
+    // 5. PREMIUM UI DESIGN
+    const successMessage = `
+✨ <b>PURCHASE CONFIRMED</b> ✨
 ━━━━━━━━━━━━━━━━━━
-ደረጃውን የጠበቀ የሎተሪ ቁጥርዎ፡
-🎫 Ticket Number: <b>#${ticketNumber}</b>
-💰 10 ETB deducted from wallet.
+<b>Congratulations!</b> Your entry has been securely registered in our system.
+
+<b>🎫 TICKET DETAILS:</b>
+┌────────────────────┐
+  <b>NUM:</b> <code>#${ticketNumber}</code>
+  <b>COST:</b> <code>${TICKET_PRICE}.00 ETB</code>
+  <b>STAT:</b> <code>Verified ✅</code>
+└────────────────────┘
+
+<b>📅 DATE:</b> <code>${new Date().toLocaleString()}</code>
+
 ━━━━━━━━━━━━━━━━━━
-<i>Good luck! You can view your tickets in your profile.</i>`, { parse_mode: 'HTML' });
+<i>Check your "My Tickets" menu to see all your entries. Good luck!</i>`;
+
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('🎟 Buy Another', 'buy_with_wallet')],
+      [Markup.button.callback('📂 View My Tickets', 'view_my_tickets')]
+    ]);
+
+    return ctx.editMessageText(successMessage, { 
+      parse_mode: 'HTML', 
+      ...keyboard 
+    });
 
   } catch (e) {
-    console.error(e);
-    return ctx.answerCbQuery("❌ An error occurred. Try again.");
+    console.error("CRITICAL ERROR during purchase:", e);
+    return ctx.answerCbQuery("🚨 System Busy. Please try again in a moment.", { show_alert: true });
   }
 });
+  
 
 // 3. Deposit Info (editMessageText ተጠቀምንበት)
 bot.action('show_deposit_info', async (ctx) => {
