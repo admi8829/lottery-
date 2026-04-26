@@ -167,11 +167,16 @@ bot.action('admin_draw_winners', async (ctx) => {
   if (ctx.from.id !== ADMIN_ID) return ctx.answerCbQuery("Unauthorized!");
 
   try {
-    // 1. የዕጣ መቼቶችን ማምጣት
+    // 1. Fetch draw settings with Safety Check
     const drawSettings = await env.DB.prepare("SELECT * FROM draw_settings WHERE id = 1").first();
+    
+    if (!drawSettings) {
+      return ctx.reply("🚨 <b>Error:</b> Draw settings not found. Please run the SQL setup first.");
+    }
+
     const currentRound = drawSettings.draw_name || "Round 1";
     
-    // 2. አሸናፊዎችን መምረጥ (JOIN በመጠቀም ስማቸውን ጭምር)
+    // 2. Select 3 Random Winners from Active Tickets
     const winners = await env.DB.prepare(
       `SELECT t.ticket_number, t.user_id, u.name 
        FROM tickets t 
@@ -180,48 +185,65 @@ bot.action('admin_draw_winners', async (ctx) => {
        ORDER BY RANDOM() LIMIT 3`
     ).all();
 
-    // ቢያንስ 3 ቲኬት መኖሩን ማረጋገጥ
     if (!winners.results || winners.results.length < 3) {
-      return ctx.reply("❌ <b>Draw Failed:</b> Not enough active tickets (Min 3 required).", { parse_mode: 'HTML' });
+      return ctx.reply("❌ <b>Draw Failed:</b> Minimum 3 'Active' tickets required to pick winners.", { parse_mode: 'HTML' });
     }
 
     const prizes = [drawSettings.prize_1, drawSettings.prize_2, drawSettings.prize_3];
-    let announcementText = `🎊 <b>OFFICIAL DRAW RESULTS</b> 🎊\n━━━━━━━━━━━━━━━━━━\n<b>🏆 Event:</b> ${currentRound}\n\n`;
+    const ranks = ["1st Prize", "2nd Prize", "3rd Prize"];
+    
+    let announcementText = `🎊 <b>OFFICIAL DRAW RESULTS</b> 🎊\n`;
+    announcementText += `━━━━━━━━━━━━━━━━━━━━\n`;
+    announcementText += `🏆 <b>Event:</b> <code>${currentRound}</code>\n`;
+    announcementText += `📅 <b>Date:</b> <code>${new Date().toLocaleDateString()}</code>\n`;
+    announcementText += `━━━━━━━━━━━━━━━━━━━━\n\n`;
 
-    // 3. አሸናፊዎችን መመዝገብ እና ማሳወቅ
+    // 3. Process Winners
     for (let i = 0; i < winners.results.length; i++) {
       const winner = winners.results[i];
       const prize = prizes[i];
+      const rank = ranks[i];
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
 
-      // ወደ winners table መመዝገብ
+      // Save to Winners Table
       await env.DB.prepare(
-        "INSERT INTO winners (draw_round, winner_name, ticket_number, prize_amount) VALUES (?, ?, ?, ?)"
-      ).bind(currentRound, winner.name, winner.ticket_number, prize).run();
+        "INSERT INTO winners (draw_round, winner_name, ticket_number, prize_amount, rank_label) VALUES (?, ?, ?, ?, ?)"
+      ).bind(currentRound, winner.name, winner.ticket_number, prize, rank).run();
 
-      // ለአሸናፊው በውስጥ መስመር መልዕክት መላክ
+      // Notify the Winner Privately
       try {
-        const winnerMsg = `🎉 <b>CONGRATULATIONS!</b>\n\nYour ticket <b>#${winner.ticket_number}</b> has won <b>${prize}</b> in <b>${currentRound}</b>!\n\nPlease contact support to claim your prize.`;
+        const winnerMsg = `🎉 <b>CONGRATULATIONS!</b>\n\nYou have won the <b>${rank} (${prize})</b> in <b>${currentRound}</b>!\n\n🎫 Ticket: <b>#${winner.ticket_number}</b>\n\nPlease contact the Admin to claim your prize! 🎁`;
         await ctx.telegram.sendMessage(winner.user_id, winnerMsg, { parse_mode: 'HTML' });
       } catch (e) {
-        console.log(`Notification failed for ${winner.user_id}`);
+        console.log(`Could not DM user ${winner.user_id}`);
       }
 
-      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
-      announcementText += `${medal} <b>${prize}:</b> ${winner.name} (🎫 #${winner.ticket_number})\n`;
+      announcementText += `${medal} <b>${rank} Winner</b>\n`;
+      announcementText += `┣ 👤 <b>Name:</b> ${winner.name}\n`;
+      announcementText += `┣ 🎫 <b>Ticket:</b> <code>#${winner.ticket_number}</code>\n`;
+      announcementText += `┗ 🎁 <b>Prize:</b> <b>${prize}</b>\n\n`;
     }
 
-    // 4. የዙር ቁጥሩን በራስ-ሰር ማሳደግ (ለምሳሌ Round 1 ወደ Round 2)
-    const nextRoundNumber = parseInt(currentRound.replace(/[^0-9]/g, '')) + 1 || 2;
-    const nextRoundName = `Round ${nextRoundNumber}`;
+    announcementText += `━━━━━━━━━━━━━━━━━━━━\n`;
+    announcementText += `✨ <i>Congratulations to all the winners! Stay tuned for the next round.</i>`;
 
-    // 5. ቲኬቶችን 'expired' ማድረግ እና አዲሱን ዙር መመዝገብ
+    // 4. Auto-Increment Round Name
+    const nextRoundNum = parseInt(currentRound.replace(/[^0-9]/g, '')) + 1 || 2;
+    const nextRoundName = `Round ${nextRoundNum}`;
+
+    // 5. Update DB (Expire tickets & Set Next Round)
     await env.DB.batch([
       env.DB.prepare("UPDATE tickets SET status = 'expired' WHERE status = 'active'"),
       env.DB.prepare("UPDATE draw_settings SET draw_name = ? WHERE id = 1").bind(nextRoundName)
     ]);
 
-    announcementText += `━━━━━━━━━━━━━━━━━━\n<i>All winners notified! Next session: <b>${nextRoundName}</b></i>`;
-    
+    // 6. Send to Group & Admin
+    try {
+        await ctx.telegram.sendMessage(ADMIN_GROUP_ID, announcementText, { parse_mode: 'HTML' });
+    } catch (e) {
+        console.error("Failed to forward to group:", e);
+    }
+
     return ctx.reply(announcementText, { parse_mode: 'HTML' });
 
   } catch (e) {
@@ -229,6 +251,7 @@ bot.action('admin_draw_winners', async (ctx) => {
     return ctx.reply("🚨 <b>Critical Error:</b> " + e.message);
   }
 });
+          
         
   bot.action('check_join', async (ctx) => {
   try {
