@@ -31,14 +31,15 @@ const languageKeyboard = Markup.inlineKeyboard([
     // --- 2. Start Command ---
 bot.start(async (ctx) => {
   try {
-    const userId = ctx.from.id;
+    const userId = ctx.from.id; // 1. እዚህ ጋር ተፈጥሯል
     const startPayload = ctx.startPayload;
     const CHANNEL_ID = "@SmartX_Ethio";
 
     const member = await ctx.telegram.getChatMember(CHANNEL_ID, userId).catch(() => ({ status: 'left' }));
     const isMember = ['member', 'administrator', 'creator'].includes(member.status);
 
-    const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
+    // 2. እዚህ ጋር 'let' ተጠቀምኩኝ ምክንያቱም እሴቱ (value) ሊቀየር ስለሚችል
+    let user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
 
     if (!isMember) {
       const forceJoinKeyboard = Markup.inlineKeyboard([
@@ -66,16 +67,15 @@ bot.start(async (ctx) => {
     }
 
     await env.DB.prepare(
-  "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count, language) VALUES (?, ?, ?, ?, ?, ?)"
-).bind(userId, ctx.from.first_name, referrerId, 0, 0, 'en').run();
+      "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count, language) VALUES (?, ?, ?, ?, ?, ?)"
+    ).bind(userId, ctx.from.first_name, referrerId, 0, 0, 'en').run();
 
-      const userId = ctx.from.id;
-    
-    // የተጠቃሚውን ቋንቋ ከዳታቤዝ ማግኘት
-    const user = await env.DB.prepare("SELECT language FROM users WHERE user_id = ?").bind(userId).first();
+    // --- ማስተካከያው እዚህ ጋር ነው ---
+    // እዚህ ጋር 'const' የሚለውን አጥፍተነዋል ምክንያቱም userId ከላይ ተፈጥሯል
+    // 'user' የሚለውንም ያለ 'const' ነው የምንጠቀመው ምክንያቱም ከላይ ተፈጥሯል
+    user = await env.DB.prepare("SELECT language FROM users WHERE user_id = ?").bind(userId).first();
     const lang = user ? user.language : 'en';
 
-    // የሁለቱም ቋንቋዎች መልዕክት
     const texts = {
       en: `✨ <b>Welcome to SmartX Lottery!</b> ✨
 ━━━━━━━━━━━━━━━━━━
