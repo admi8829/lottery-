@@ -21,55 +21,69 @@ export default {
     ]).resize();
 
     // --- 2. Start Command ---
-    bot.start(async (ctx) => {
-      try {
-        const userId = ctx.from.id;
-        const startPayload = ctx.startPayload;
-        
-        const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
-        if (user && user.phone) {
-          const welcomeBackMsg = `
-✨ <b>WELCOME BACK!</b> ✨
+   bot.start(async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    const startPayload = ctx.startPayload;
+    
+    // 1. ተጠቃሚው መመዝገቡን ቼክ ማድረግ
+    const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
+
+    // 2. ተጠቃሚው ቀድሞ ተመዝግቦ ከሆነ (ስልክ ካለው)
+    if (user && user.phone) {
+      
+      // --- አዲሱ ማስተካከያ እዚህ ጋር ነው ---
+      // ተጠቃሚው ቻናሉን መቀላቀሉን ቼክ እናደርጋለን
+      const member = await ctx.telegram.getChatMember("@SmartX_Ethio", userId);
+      const isMember = ['member', 'administrator', 'creator'].includes(member.status);
+
+      if (isMember) {
+        // አባል ከሆነና ስልክ ካለው በቀጥታ Main Menu
+        const welcomeBackMsg = `
+👋 <b>Welcome Back, ${user.name}!</b>
 ━━━━━━━━━━━━━━━━━━
-Hello <b>${user.name}</b>, it's great to see you again! 
-
-💰 <b>Current Balance:</b> <code>${user.balance || 0} ETB</code>
-🎟 <b>Your Invites:</b> <code>${user.invite_count || 0} users</code>
-
-Ready to try your luck today? Select an option below to get started.
+Your account is active and ready. What would you like to do today?
 ━━━━━━━━━━━━━━━━━━`;
+        return ctx.reply(welcomeBackMsg, { parse_mode: 'HTML', ...mainKeyboard });
+      } else {
+        // ስልክ አለው ግን ቻናሉን ለቆ ከሆነ ድጋሜ እንዲቀላቀል መጠየቅ
+        return ctx.reply("👋 <b>Welcome Back!</b>\nPlease join our channel to continue using the bot.", {
+          parse_mode: 'HTML',
+          ...Markup.inlineKeyboard([
+            [Markup.button.url('📢 Join Channel', 'https://t.me/SmartX_Ethio')],
+            [Markup.button.callback('✅ I Have Joined', 'check_join')]
+          ])
+        });
+      }
+    }
 
-          return ctx.reply(welcomeBackMsg, { 
-            parse_mode: 'HTML', 
-            ...mainKeyboard 
-          });
-        }
-        
-        let referrerId = null;
-        if (startPayload && startPayload.startsWith('ref_')) {
-          const ref = parseInt(startPayload.replace('ref_', ''));
-          if (ref !== userId) referrerId = ref;
-        }
+    // 3. አዲስ ተጠቃሚ ከሆነ የሚደረግ ምዝገባ (እንደ ቀድሞው)
+    let referrerId = null;
+    if (startPayload && startPayload.startsWith('ref_')) {
+      const ref = parseInt(startPayload.replace('ref_', ''));
+      if (ref !== userId) referrerId = ref;
+    }
 
-        await env.DB.prepare(
-          "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, ?, ?)"
-        ).bind(userId, ctx.from.first_name, referrerId, 0, 0).run();
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, ?, ?)"
+    ).bind(userId, ctx.from.first_name, referrerId, 0, 0).run();
 
-        const welcomeMsg = `
+    const welcomeMsg = `
 ✨ <b>Welcome to SmartX Lottery!</b> ✨
 ━━━━━━━━━━━━━━━━━━
 To start winning amazing prizes, please complete your registration.
 
-<b>1. Join our channel:</b> ${CHANNEL_ID}
+<b>1. Join our channel:</b> @SmartX_Ethio
 <b>2. Share your phone number</b> using the button below.
 ━━━━━━━━━━━━━━━━━━`;
 
-        return ctx.reply(welcomeMsg, { parse_mode: 'HTML', ...requestPhoneKeyboard });
-      } catch (e) {
-        return ctx.reply("Error: " + e.message);
-      }
-    });
-    
+    return ctx.reply(welcomeMsg, { parse_mode: 'HTML', ...requestPhoneKeyboard });
+
+  } catch (e) {
+    return ctx.reply("Error: " + e.message);
+  }
+});
+          
     // --- 3. Phone Verification & Draw Info Display ---
 bot.on('contact', async (ctx) => {
   try {
