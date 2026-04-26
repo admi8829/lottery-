@@ -69,7 +69,7 @@ Your account is active and ready. What would you like to do today?
     ).bind(userId, ctx.from.first_name, referrerId, 0, 0).run();
 
     const welcomeMsg = `
-✨ <b>Welcome to SmartX Lottery!</b> ✨
+✨ <b>Welcome to SmartX Pottery!</b> ✨
 ━━━━━━━━━━━━━━━━━━
 To start winning amazing prizes, please complete your registration.
 
