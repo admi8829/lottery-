@@ -360,10 +360,10 @@ bot.action('buy_with_wallet', async (ctx) => {
 <i>Note: 10 ETB will be deducted after you click the button below.</i>`;
 
     const keyboard = Markup.inlineKeyboard([
-      [Markup.button.callback('✅ Confirm & Purchase', 'finalize_buy_ticket')],
-      [Markup.button.callback('❌ Cancel', 'back_to_settings')]
-    ]);
-
+  [Markup.button.callback('✅ Confirm & Purchase', 'finalize_buy_ticket')],
+  [Markup.button.callback('❌ Cancel', 'action_cancelled')] 
+]);
+    
     return ctx.editMessageText(confirmMsg, { parse_mode: 'HTML', ...keyboard });
 
   } catch (e) {
