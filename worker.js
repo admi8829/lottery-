@@ -58,40 +58,45 @@ To start winning amazing prizes, please complete your registration.
     });
     
     // --- 3. Phone Verification & Draw Info Display ---
- bot.on('contact', async (ctx) => {
+bot.on('contact', async (ctx) => {
   try {
     const userId = ctx.from.id;
     const contact = ctx.message.contact;
+    const firstName = ctx.from.first_name;
 
-    // 1. የሌላ ሰው ስልክ ቁጥር እንዳይልክ መከላከል (Security)
+    // 1. Security Check: Ensures the user shared their own contact
     if (contact.user_id !== userId) {
-      return ctx.reply("❌ <b>Security Alert!</b>\nPlease share your own contact using the button below.", { parse_mode: 'HTML' });
+      return ctx.reply("❌ <b>Security Alert!</b>\nFor verification purposes, you must share your own contact number using the button below.", { parse_mode: 'HTML' });
     }
 
-    // 2. በዳታቤዝ ውስጥ የስልክ ቁጥር እና ስም ማደስ
+    // 2. Database Update: Register phone and name
     await env.DB.prepare("UPDATE users SET phone = ?, name = ? WHERE user_id = ?")
-      .bind(contact.phone_number, ctx.from.first_name, userId).run();
+      .bind(contact.phone_number, firstName, userId).run();
 
-    // 3. የሪፈራል ክፍያ (Referral Reward)
+    // 3. Referral Reward System: Pays the referrer 2 ETB
     const user = await env.DB.prepare("SELECT referred_by FROM users WHERE user_id = ?").bind(userId).first();
     if (user && user.referred_by) {
       await env.DB.prepare("UPDATE users SET balance = balance + 2, invite_count = invite_count + 1 WHERE user_id = ?")
         .bind(user.referred_by).run();
+      
+      // Notify the person who invited this user
       try {
-        await ctx.telegram.sendMessage(user.referred_by, "🎊 <b>New Referral!</b>\nYour friend joined and +2 ETB has been added to your wallet.", { parse_mode: 'HTML' });
-      } catch (err) {}
+        await ctx.telegram.sendMessage(user.referred_by, "🎊 <b>New Referral Reward!</b>\nYour friend joined successfully. <b>+2 ETB</b> has been added to your balance.", { parse_mode: 'HTML' });
+      } catch (err) {
+        console.log("Could not send referral notification.");
+      }
     }
 
-    // 4. የሚያምር የ Success Message እና የቻናል መቀላቀያ ጥሪ (Force Join)
+    // 4. Force Join Instructions: Clean and Professional UI
     const completionMsg = `
-✨ <b>Registration Successful!</b> ✨
+✨ <b>Registration Success!</b> ✨
 ━━━━━━━━━━━━━━━━━━
-Hello <b>${ctx.from.first_name}</b>, your phone number has been verified. 
+Hello <b>${firstName}</b>, your phone number has been verified and your account is created.
 
 🔓 <b>One Final Step:</b>
-To access the main menu and participate in our draws, you must <b>join our official channel</b>. 
+To unlock the <b>Main Menu</b> and start participating in our lottery draws, you must <b>join our official channel</b>.
 
-This helps you stay updated with winner announcements and new prizes!
+Joining helps you stay updated with draw results, winners, and upcoming prizes!
 ━━━━━━━━━━━━━━━━━━`;
 
     return ctx.reply(completionMsg, {
@@ -103,11 +108,11 @@ This helps you stay updated with winner announcements and new prizes!
     });
 
   } catch (e) {
-    console.error("Contact Error:", e);
-    return ctx.reply("⚠️ <b>System Error:</b> Please try again later.", { parse_mode: 'HTML' });
+    console.error("Contact Processing Error:", e);
+    return ctx.reply("⚠️ <b>System Error:</b> We encountered a problem while saving your contact. Please try again.", { parse_mode: 'HTML' });
   }
 });
-      
+    
     // --- [ 1. የአድሚን ሜኑ ትዕዛዝ ] ---
 bot.command('admin_menu', async (ctx) => {
   // Check if the user is the authorized admin
@@ -198,44 +203,35 @@ Please contact support to claim your prize.
   }
 });
     
-bot.action('check_join', async (ctx) => {
+  bot.action('check_join', async (ctx) => {
   try {
-    // ተጠቃሚው በቻናሉ ውስጥ ያለበትን ሁኔታ ቼክ ያደርጋል
+    // ቴሌግራምን ተጠቃሚው አባል መሆኑን እንጠይቃለን
     const member = await ctx.telegram.getChatMember("@SmartX_Ethio", ctx.from.id);
-    
-    // አባል ከሆነ ሁኔታው 'member', 'administrator' ወይም 'creator' ይሆናል
     const isMember = ['member', 'administrator', 'creator'].includes(member.status);
 
     if (isMember) {
-      // 1. "Welcome" የሚል አጭር ማሳሰቢያ ከላይ ያሳያል
-      await ctx.answerCbQuery("Welcome! Access Granted. 🎉");
+      // 1. አጭር የማረጋገጫ መልዕክት ከላይ ያሳያል
+      await ctx.answerCbQuery("Success! Welcome aboard. 🎉");
 
       // 2. የቆየውን የ "Join Channel" መልዕክት ያጠፋል
       await ctx.deleteMessage().catch(() => {});
 
-      // 3. ዋናውን ሜኑ ይከፍትለታል
-      return ctx.reply(`
-🔓 <b>Account Fully Activated!</b>
-━━━━━━━━━━━━━━━━━━
-Hello <b>${ctx.from.first_name}</b>, welcome to SmartX Lottery. 
-You can now start buying tickets and inviting friends.
-
-Good luck! 🍀
-━━━━━━━━━━━━━━━━━━`, {
+      // 3. ዋናውን ሜኑ (Main Menu) ይከፍትለታል
+      return ctx.reply(`<b>Access Granted!</b> 👋\n\nWelcome to <b>SmartX Lottery</b>. Your account is now fully active. You can start buying tickets and inviting friends!`, {
         parse_mode: 'HTML',
-        ...mainKeyboard // ይህ ከላይ የገለጽከው ዋናው ኪቦርድ መሆኑን አረጋግጥ
+        ...mainKeyboard 
       });
-      
+
     } else {
       // አባል ካልሆነ የሚመጣ ማስጠንቀቂያ (Alert)
       return ctx.answerCbQuery("⚠️ You haven't joined yet! Please join the channel first.", { show_alert: true });
     }
   } catch (e) {
     console.error("Join Check Error:", e);
-    return ctx.answerCbQuery("❌ Connection error. Make sure the bot is an Admin in the channel.", { show_alert: true });
+    return ctx.answerCbQuery("❌ Error: Make sure the bot is an Admin in the channel.", { show_alert: true });
   }
 });
-    
+      
 
  bot.hears('🎟 New Ticket', async (ctx) => {
   const userId = ctx.from.id;
