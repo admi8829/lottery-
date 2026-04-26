@@ -147,7 +147,7 @@ bot.command('admin_menu', async (ctx) => {
   if (ctx.from.id !== ADMIN_ID) return; 
 
   const adminMsg = `
-<b>🛠 Admin Control Panel</b>
+<b>🛠 Admin Control 🛂 Panel</b>
 ━━━━━━━━━━━━━━━━━━
 Welcome back, Admin! Use the button below to randomly select 3 winners for the current active draw.
 
