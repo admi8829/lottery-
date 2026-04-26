@@ -560,19 +560,20 @@ Select an amount to approve:`;
     
 // 1. የቻናል ግዴታን የሚያረጋግጥ Action
 bot.action('check_join', async (ctx) => {
-  const CHANNEL_ID = "@SmartX_Ethio"; // ያንተ ቻናል ID
+  const CHANNEL_ID = "@SmartX_Ethio";
   const userId = ctx.from.id;
 
   try {
-    // በቴሌግራም ሲስተም ተጠቃሚው አባል መሆኑን ቼክ ማድረግ
     const member = await ctx.telegram.getChatMember(CHANNEL_ID, userId);
     const isMember = ['member', 'administrator', 'creator'].includes(member.status);
 
     if (isMember) {
-      // ✅ አባል ከሆነ - ደስ የሚል አኒሜሽን እና መልዕክት
-      await ctx.answerCbQuery("🎉 እንኳን ደህና መጡ! በትክክል ተቀላቅለዋል።", { show_alert: false });
-      
-      const successMsg = `
+      await ctx.answerCbQuery("🎉 እንኳን ደህና መጡ!");
+
+      const user = await env.DB.prepare("SELECT phone FROM users WHERE user_id = ?").bind(userId).first();
+
+      if (user && user.phone) {
+        const successMsg = `
 ✨ <b>እንኳን ደስ አለዎት!</b> ✨
 ━━━━━━━━━━━━━━━━━━
 አሁን የ <b>SmartX Lottery</b> ሙሉ አባል ነዎት።
@@ -581,17 +582,25 @@ bot.action('check_join', async (ctx) => {
 ዕድልዎን ይሞክሩ፣ በሚሊዮኖች የሚቆጠሩ ሽልማቶችን ያሸንፉ! 🏆
 ━━━━━━━━━━━━━━━━━━`;
 
-      // ዋናውን ሜኑ አሳይ
-      return ctx.editMessageText(successMsg, {
-        parse_mode: 'HTML',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback('🎟 ቲኬት ቁረጥ', 'buy_ticket_menu')],
-          [Markup.button.callback('💰 Wallet', 'view_wallet')]
-        ])
-      });
+        return ctx.editMessageText(successMsg, {
+          parse_mode: 'HTML',
+          ...mainKeyboard
+        });
+      } else {
+        await ctx.deleteMessage();
+        const welcomeMsg = `
+✨ <b>እንኳን ደስ አለዎት! ቻናሉን በትክክል ተቀላቅለዋል።</b> ✨
+━━━━━━━━━━━━━━━━━━
+ምዝገባውን ለመጨረስ እባክዎ ከታች ያለውን አዝራር በመጫን <b>ስልክ ቁጥርዎን ያጋሩ</b>።
+━━━━━━━━━━━━━━━━━━`;
+
+        return ctx.reply(welcomeMsg, {
+          parse_mode: 'HTML',
+          ...requestPhoneKeyboard
+        });
+      }
 
     } else {
-      // ❌ አባል ካልሆነ - ማስጠንቀቂያ
       return ctx.answerCbQuery("⚠️ እባክዎ መጀመሪያ ቻናሉን ይቀላቀሉ!", { show_alert: true });
     }
 
@@ -600,6 +609,7 @@ bot.action('check_join', async (ctx) => {
     return ctx.reply("ስህተት ተከስቷል፣ እባክዎ ትንሽ ቆይተው ይሞክሩ።");
   }
 });
+    
 
 // 2. ተጠቃሚው ገና ሲመጣ የሚላክ ማራኪ ጥሪ (Start ላይ ወይም በየመሃሉ የሚላክ)
 const forceJoinKeyboard = Markup.inlineKeyboard([
@@ -612,29 +622,7 @@ bot.action('request_withdraw', async (ctx) => {
   await ctx.answerCbQuery();
   return ctx.reply("📩 <b>Withdrawal Request</b>\nPlease contact @AdminUsername with your registered phone and the amount you wish to withdraw.", { parse_mode: 'HTML' });
 });
-                              
- /* bot.action('check_join', async (ctx) => {
-  const channelId = "@SmartX_Ethio"; // የቻናልህ Username (@ ምልክት እንዳይረሳ)
-  const userId = ctx.from.id;
 
-  try {
-    const member = await ctx.telegram.getChatMember(channelId, userId);
-    
-    // መቀላቀሉን ማረጋገጫ (status 'member', 'administrator', ወይም 'creator' ከሆነ)
-    if (['member', 'administrator', 'creator'].includes(member.status)) {
-      await ctx.answerCbQuery("Thank you for joining! 🎉");
-      await ctx.deleteMessage(); // የ join መልዕክቱን ለማጥፋት
-      return ctx.reply(
-        "<b>Verification Complete! 🔓</b>\nYou now have full access to the bot.",
-        { parse_mode: 'HTML', ...mainKeyboard }
-      );
-    } else {
-      await ctx.answerCbQuery("❌ You haven't joined the channel yet!", { show_alert: true });
-    }
-  } catch (e) {
-    await ctx.answerCbQuery("Error verifying membership. Make sure the bot is Admin in the channel.", { show_alert: true });
-  }
-});*/
 
   bot.action('view_invite_link', async (ctx) => {
   const userId = ctx.from.id;
