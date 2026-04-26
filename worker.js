@@ -263,12 +263,13 @@ bot.hears('🎟 New Ticket', async (ctx) => {
   const userId = ctx.from.id;
   
   try {
-    // 1. የተጠቃሚውን ቀሪ ሂሳብ እና ንቁ የሆነውን ዕጣ መረጃ ማምጣት
+    // 1. የተጠቃሚውን ባላንስ እና የዕጣ መረጃን ከዳታቤዝ እናመጣለን
     const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(userId).first();
-    const draw = await env.DB.prepare("SELECT draw_name FROM draw_settings WHERE id = 1").first();
+    const draw = await env.DB.prepare("SELECT * FROM draw_settings WHERE id = 1").first();
 
     const balance = user?.balance || 0;
     const currentDraw = draw?.draw_name || "Weekly Grand Draw";
+    const prize1 = draw?.prize_1 || "1,000 ETB";
     const ticketPrice = 10;
 
     // --- ሁኔታ 1: በቂ ብር ካለው ---
@@ -281,21 +282,26 @@ bot.hears('🎟 New Ticket', async (ctx) => {
       const purchaseMsg = `
 <b>🎟 Purchase a New Ticket</b>
 ━━━━━━━━━━━━━━━━━━
-<b>🏆 Active Draw:</b> <code>${currentDraw}</code>
-<b>💰 Ticket Price:</b> <code>${ticketPrice} ETB</code>
+🏆 <b>Active Draw:</b> <code>${currentDraw}</code>
+🎁 <b>Top Prize:</b> <code>${prize1}</code>
+💰 <b>Ticket Price:</b> <code>${ticketPrice} ETB</code>
 
-<b>💳 Your Balance:</b> <code>${balance} ETB</code>
+💳 <b>Your Balance:</b> <code>${balance} ETB</code>
 ━━━━━━━━━━━━━━━━━━
-<i>Would you like to use 10 ETB from your wallet to buy 1 entry ticket?</i>`;
+<i>Would you like to buy 1 entry ticket for 10 ETB?</i>`;
 
-      return ctx.reply(purchaseMsg, { parse_mode: 'HTML', ...confirmKeyboard });
+      return ctx.reply(purchaseMsg, { 
+        parse_mode: 'HTML', 
+        ...confirmKeyboard 
+      });
     } 
 
     // --- ሁኔታ 2: በቂ ብር ከሌለው ---
     else {
       const depositKeyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📥 How to Deposit Money', 'show_deposit_info')],
-        [Markup.button.callback('👥 Invite Friends (Earn 2 ETB)', 'view_invite_link')]
+        [Markup.button.callback('📂 View My Tickets', 'view_my_tickets')],
+        [Markup.button.callback('👥 Invite Friends', 'view_invite_link')]
       ]);
 
       const lowBalanceMsg = `
@@ -303,19 +309,23 @@ bot.hears('🎟 New Ticket', async (ctx) => {
 ━━━━━━━━━━━━━━━━━━
 To participate in the <b>${currentDraw}</b>, you need at least <b>10 ETB</b>.
 
-<b>📉 Your Balance:</b> <code>${balance} ETB</code>
-<b>🎟 Required:</b> <code>${ticketPrice} ETB</code>
+📉 <b>Your Balance:</b> <code>${balance} ETB</code>
+🎟 <b>Required:</b> <code>${ticketPrice} ETB</code>
 ━━━━━━━━━━━━━━━━━━
 <i>Please deposit funds or invite friends to earn more balance!</i>`;
 
-      return ctx.reply(lowBalanceMsg, { parse_mode: 'HTML', ...depositKeyboard });
+      return ctx.reply(lowBalanceMsg, { 
+        parse_mode: 'HTML', 
+        ...depositKeyboard 
+      });
     }
 
   } catch (e) {
     console.error("New Ticket Error:", e);
-    return ctx.reply("⚠️ <b>System Error:</b> Could not process your request. Please try again later.", { parse_mode: 'HTML' });
+    return ctx.reply("⚠️ <b>System Error:</b> Could not fetch draw details. Please try again.", { parse_mode: 'HTML' });
   }
 });
+      
 
     // 2. Buy Ticket (የተሻሻለ ዲዛይን)
 bot.action('buy_with_wallet', async (ctx) => {
