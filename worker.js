@@ -198,6 +198,43 @@ Please contact support to claim your prize.
   }
 });
     
+bot.action('check_join', async (ctx) => {
+  try {
+    // ተጠቃሚው በቻናሉ ውስጥ ያለበትን ሁኔታ ቼክ ያደርጋል
+    const member = await ctx.telegram.getChatMember("@SmartX_Ethio", ctx.from.id);
+    
+    // አባል ከሆነ ሁኔታው 'member', 'administrator' ወይም 'creator' ይሆናል
+    const isMember = ['member', 'administrator', 'creator'].includes(member.status);
+
+    if (isMember) {
+      // 1. "Welcome" የሚል አጭር ማሳሰቢያ ከላይ ያሳያል
+      await ctx.answerCbQuery("Welcome! Access Granted. 🎉");
+
+      // 2. የቆየውን የ "Join Channel" መልዕክት ያጠፋል
+      await ctx.deleteMessage().catch(() => {});
+
+      // 3. ዋናውን ሜኑ ይከፍትለታል
+      return ctx.reply(`
+🔓 <b>Account Fully Activated!</b>
+━━━━━━━━━━━━━━━━━━
+Hello <b>${ctx.from.first_name}</b>, welcome to SmartX Lottery. 
+You can now start buying tickets and inviting friends.
+
+Good luck! 🍀
+━━━━━━━━━━━━━━━━━━`, {
+        parse_mode: 'HTML',
+        ...mainKeyboard // ይህ ከላይ የገለጽከው ዋናው ኪቦርድ መሆኑን አረጋግጥ
+      });
+      
+    } else {
+      // አባል ካልሆነ የሚመጣ ማስጠንቀቂያ (Alert)
+      return ctx.answerCbQuery("⚠️ You haven't joined yet! Please join the channel first.", { show_alert: true });
+    }
+  } catch (e) {
+    console.error("Join Check Error:", e);
+    return ctx.answerCbQuery("❌ Connection error. Make sure the bot is an Admin in the channel.", { show_alert: true });
+  }
+});
     
 
  bot.hears('🎟 New Ticket', async (ctx) => {
