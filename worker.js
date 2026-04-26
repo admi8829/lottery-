@@ -341,7 +341,7 @@ ${prizeSection}
       ]);
 
       const lowBalanceMsg = `
-<b>❌ INSUFFICIENT BALANCE!</b>
+<b>❌ INSUFFICIENT  and BALANCE!</b>
 ━━━━━━━━━━━━━━━━━━
 🏆 <b>Event:</b> <code>${currentDraw}</code>
 ${prizeSection}
