@@ -547,6 +547,43 @@ bot.hears('🎟 My Tickets', async (ctx) => {
     return ctx.reply("⚠️ Error loading tickets.");
   }
 });
+
+    bot.hears('🏆 Winners', async (ctx) => {
+  try {
+    // 1. የቅርብ ጊዜ 10 አሸናፊዎችን ከዳታቤዝ ማምጣት
+    // ማሳሰቢያ፡ በዳታቤዝህ ውስጥ 'winners' የሚል table መኖሩን አረጋግጥ
+    const winners = await env.DB.prepare("SELECT draw_round, winner_name, ticket_number FROM winners ORDER BY id DESC LIMIT 10").all();
+
+    let winnersMsg = `<b>🏆 RECENT DRAW WINNERS</b>\n━━━━━━━━━━━━━━━━━━\n`;
+
+    if (!winners.results || winners.results.length === 0) {
+      winnersMsg += `<i>No winners announced yet. Stay tuned for the next draw! 🍀</i>`;
+    } else {
+      winners.results.forEach((w) => {
+        winnersMsg += `<b>🔄 Round:</b> <code>${w.draw_round}</code>\n`;
+        winnersMsg += `👤 <b>Name:</b> ${w.winner_name}\n`;
+        winnersMsg += `🎫 <b>Ticket:</b> <code>#${w.ticket_number}</code>\n`;
+        winnersMsg += `━━━━━━━━━━━━━━━━━━\n`;
+      });
+      winnersMsg += `<i>Congratulations to all winners! 🎉</i>`;
+    }
+
+    // አዝራር መጨመር (ለተጨማሪ መረጃ ወይም ወደ ኋላ ለመመለስ)
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('🎟 Buy Ticket', 'buy_with_wallet')],
+      [Markup.button.callback('🔙 Back to Menu', 'back_to_settings')]
+    ]);
+
+    return ctx.reply(winnersMsg, { 
+      parse_mode: 'HTML', 
+      ...keyboard 
+    });
+
+  } catch (e) {
+    console.error("Winners Error:", e);
+    return ctx.reply("⚠️ <b>Error:</b> Could not fetch winners list at the moment.");
+  }
+});
     
      
   bot.hears('👥 Invite & Earn', async (ctx) => {
