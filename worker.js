@@ -280,7 +280,7 @@ bot.hears('🎟 New Ticket', async (ctx) => {
 
     if (balance >= ticketPrice) {
       const confirmKeyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('✅ Confirm Purchase (50 ETB)', 'buy_with_wallet')],
+        [Markup.button.callback('✅ Confirm Purchase (58 ETB)', 'buy_with_wallet')],
         [Markup.button.callback('❌ Cancel', 'back_to_wallet')]
       ]);
 
@@ -407,20 +407,22 @@ Choose your preferred method to add balance to your wallet.
 });
     
 
-  bot.action('back_to_settings', async (ctx) => {
+bot.action('back_to_settings', async (ctx) => {
   try {
-    // 1. የቆየውን የቲኬት ማረጋገጫ መልዕክት ያጠፋዋል
-    await ctx.deleteMessage().catch(() => {});
+    await ctx.answerCbQuery();
+    // የቆየውን የቲኬት መልዕክት ያጠፋዋል
+    await ctx.deleteMessage().catch(() => {}); 
 
-    // 2. ተጠቃሚውን ወደ ዋናው ገጽ መልሶ አዲስ መልዕክት ይልካል
-    return ctx.reply(`<b>🏠 Main Menu</b>\n━━━━━━━━━━━━━━━━━━\nWelcome back! What would you like to do next?`, {
+    // ዋናውን ሜኑ (Main Menu) መልሶ ያመጣለታል
+    return ctx.reply(`<b>🏠 Main Menu</b>\n━━━━━━━━━━━━━━━━━━\nWelcome back! Choose an option from the menu below:`, {
       parse_mode: 'HTML',
-      ...mainKeyboard // ይህ ከላይ የፈጠርከው Reply Keyboard ነው
+      ...mainKeyboard // ዋናው ሜኑ እንዲመጣ
     });
   } catch (e) {
     console.error("Back to menu error:", e);
   }
 });
+    
     
   bot.hears('👥 Invite & Earn', async (ctx) => {
   const userId = ctx.from.id;
@@ -713,11 +715,6 @@ bot.action('do_delete', async (ctx) => {
   await env.DB.prepare("DELETE FROM users WHERE user_id = ?").bind(ctx.from.id).run();
   await ctx.answerCbQuery("Account Deleted");
   return ctx.editMessageText("Your account has been deleted. Send /start to register again.");
-});
-
-// ወደ ኋላ መመለሻ (Back Button)
-bot.action('back_to_settings', async (ctx) => {
-  // እዚህ ጋር የ Setting ሜኑን መልሰህ ጥራ (ከላይ ያለውን ኮድ ደግመህ መጠቀም ትችላለህ)
 });
 
 // 1. የክፍያ አማራጮችን ማሳያ
