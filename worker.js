@@ -338,7 +338,8 @@ ${prizeSection}
 });
   
 
- bot.action('buy_with_wallet', async (ctx) => {
+ // ደረጃ 1፡ ተጠቃሚው መጀመሪያ እንዲያረጋግጥ መጠየቅ (ብሩ ገና አይቆረጥም)
+bot.action('buy_with_wallet', async (ctx) => {
   const userId = ctx.from.id;
   const TICKET_PRICE = 10;
 
@@ -349,8 +350,42 @@ ${prizeSection}
       return ctx.answerCbQuery("❌ Insufficient Funds!", { show_alert: true });
     }
 
+    const confirmMsg = `
+<b>💳 TICKET CONFIRMATION</b>
+━━━━━━━━━━━━━━━━━━
+<b>Product:</b> 🎟 1 entry Ticket
+<b>Price:</b> <code>${TICKET_PRICE} ETB</code>
+<b>Your Balance:</b> <code>${user.balance} ETB</code>
+━━━━━━━━━━━━━━━━━━
+<i>Note: 10 ETB will be deducted after you click the button below.</i>`;
+
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('✅ Confirm & Purchase', 'finalize_buy_ticket')],
+      [Markup.button.callback('❌ Cancel', 'back_to_settings')]
+    ]);
+
+    return ctx.editMessageText(confirmMsg, { parse_mode: 'HTML', ...keyboard });
+
+  } catch (e) {
+    return ctx.answerCbQuery("🚨 Error checking balance.");
+  }
+});
+
+// ደረጃ 2፡ ተጠቃሚው ሲያጸድቅ ብሩ ተቆርጦ ቲኬቱ ይመዘገባል
+bot.action('finalize_buy_ticket', async (ctx) => {
+  const userId = ctx.from.id;
+  const TICKET_PRICE = 10;
+
+  try {
+    const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(userId).first();
+
+    if (!user || user.balance < TICKET_PRICE) {
+      return ctx.answerCbQuery("❌ Insufficient balance to complete purchase!", { show_alert: true });
+    }
+
     const ticketNumber = Math.floor(100000 + Math.random() * 900000);
 
+    // --- ብሩ የሚቀነሰውና ቲኬቱ የሚመዘገበው እዚህ ጋር ብቻ ነው ---
     await env.DB.batch([
       env.DB.prepare("UPDATE users SET balance = balance - ? WHERE user_id = ? AND balance >= ?")
         .bind(TICKET_PRICE, userId, TICKET_PRICE),
@@ -376,7 +411,6 @@ Your ticket has been successfully issued.
 ━━━━━━━━━━━━━━━━━━
 <i>Thank you for participating! Good luck.</i>`;
 
-    // አዝራሩን ወደ "Finished" ብቻ መቀየር
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback('✅ Finished', 'back_to_settings')]
     ]);
@@ -391,6 +425,7 @@ Your ticket has been successfully issued.
     return ctx.answerCbQuery("🚨 System Error. Try again.");
   }
 });
+                               
     
 bot.action('show_deposit_info', async (ctx) => {
   try {
