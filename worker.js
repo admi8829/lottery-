@@ -447,7 +447,64 @@ bot.action('back_to_settings', async (ctx) => {
   }
 });
     
+   bot.hears('🎟 My Tickets', async (ctx) => {
+  const userId = ctx.from.id;
+  try {
+    // 1. ሁሉንም የዚህን ሰው ቲኬቶች ከዳታቤዝ ማምጣት
+    const tickets = await env.DB.prepare("SELECT ticket_number, status, purchase_date FROM tickets WHERE user_id = ? ORDER BY purchase_date DESC")
+      .bind(userId)
+      .all();
+
+    // ቲኬት ከሌለው
+    if (!tickets.results || tickets.results.length === 0) {
+      return ctx.reply("<b>📂 My Tickets</b>\n━━━━━━━━━━━━━━━━━━\n<i>You haven't purchased any tickets yet.</i>", { 
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([[Markup.button.callback('🎟 Buy New Ticket', 'buy_with_wallet')]])
+      });
+    }
+
+    // 2. ቲኬቶችን በሁለት መለየት (Active vs Drawn/Expired)
+    let activeTickets = "";
+    let expiredTickets = "";
+    let activeCount = 0;
+    let expiredCount = 0;
+
+    tickets.results.forEach((t) => {
+      const dateStr = new Date(t.purchase_date).toLocaleDateString();
+      if (t.status === 'active') {
+        activeCount++;
+        activeTickets += `🟢 <code>#${t.ticket_number}</code> - <pre>${dateStr}</pre>\n`;
+      } else {
+        expiredCount++;
+        expiredTickets += `🔴 <code>#${t.ticket_number}</code> - <pre>${dateStr}</pre>\n`;
+      }
+    });
+
+    // 3. የመልዕክቱ አቀራረብ (ከ View My Tickets ጋር አንድ አይነት)
+    let finalMsg = `<b>📂 TICKET HISTORY</b>\n━━━━━━━━━━━━━━━━━━\n\n`;
     
+    finalMsg += `<b>🎫 Active Entries (${activeCount})</b>\n`;
+    finalMsg += activeCount > 0 ? activeTickets : "<i>No active tickets</i>\n";
+    
+    finalMsg += `\n<b>⌛ Past Entries (${expiredCount})</b>\n`;
+    finalMsg += expiredCount > 0 ? expiredTickets : "<i>No past history</i>\n";
+    
+    finalMsg += `\n━━━━━━━━━━━━━━━━━━\n<i>Green (🟢) means currently in the draw.</i>`;
+
+    return ctx.reply(finalMsg, { 
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('🎟 Buy New', 'buy_with_wallet')],
+        [Markup.button.callback('🔙 Back', 'back_to_settings')]
+      ])
+    });
+
+  } catch (e) {
+    console.error("My Tickets Hears Error:", e);
+    return ctx.reply("⚠️ Error fetching your tickets. Please try again.");
+  }
+});
+     
   bot.hears('👥 Invite & Earn', async (ctx) => {
   const userId = ctx.from.id;
   const botUsername = ctx.botInfo.username;
