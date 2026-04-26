@@ -296,7 +296,7 @@ bot.hears('🎟 New Ticket', async (ctx) => {
       ]);
 
       const purchaseMsg = `
-✨ <b>NEW TICKET  for PURCHASE</b> ✨
+✨ <b>NEW TICKET  PURCHASE</b> ✨
 ━━━━━━━━━━━━━━━━━━
 🏆 <b>Event:</b> <code>${currentDraw}</code>
 ${prizeSection}
@@ -479,6 +479,24 @@ bot.action('back_to_settings', async (ctx) => {
     });
   } catch (e) {
     console.error("Back to menu error:", e);
+  }
+});
+
+bot.action('action_cancelled', async (ctx) => {
+  try {
+    // 1. ሰዓቱን (loading) ለማጥፋት
+    await ctx.answerCbQuery("Action Cancelled");
+
+    // 2. የነበረውን የክፍያ ማረጋገጫ መልዕክት ለማጥፋት
+    await ctx.deleteMessage().catch(() => {});
+
+    // 3. አጭር የማረጋገጫ መልዕክት ለመላክ
+    return ctx.reply("<b>❌ Purchase Cancelled</b>\nYour balance remains unchanged. Use the menu below to continue.", {
+      parse_mode: 'HTML',
+      ...mainKeyboard // ዋናው ዝርዝር አዝራሮች ተመልሰው እንዲመጡ
+    });
+  } catch (e) {
+    console.error("Cancel error:", e);
   }
 });
     
