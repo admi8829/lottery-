@@ -694,6 +694,54 @@ Ready to turn your idea into reality? Contact me directly:
     ...devKeyboard 
   });
 });
+
+    bot.hears('👨‍✈️ Admin', async (ctx) => {
+  const userId = ctx.from.id;
+  const ADMIN_ID = 8344169004; // ያንተ ትክክለኛ ID
+
+  // የአድሚን ፍቃድ ማረጋገጫ
+  if (userId !== ADMIN_ID) {
+    return ctx.reply("⚠️ <b>Access Denied!</b>\nThis area is restricted to the system administrator only.", { parse_mode: 'HTML' });
+  }
+
+  try {
+    // አጠቃላይ መረጃዎችን ከዳታቤዝ ማምጣት
+    const userCount = await env.DB.prepare("SELECT COUNT(*) as total FROM users").first();
+    const ticketCount = await env.DB.prepare("SELECT COUNT(*) as total FROM tickets WHERE status = 'active'").first();
+    const totalBalance = await env.DB.prepare("SELECT SUM(balance) as total FROM users").first();
+
+    const adminDashboard = `
+<b>🛠 ADMIN CONTROL PANEL</b>
+━━━━━━━━━━━━━━━━━━
+Welcome back, <b>Chief!</b> Here is the current state of <b>SmartX Lottery</b>.
+
+<b>📊 PLATFORM STATS:</b>
+• 👥 Total Users: <b>${userCount.total}</b>
+• 🎟 Active Tickets: <b>${ticketCount.total}</b>
+• 💰 Total Wallet Balances: <b>${totalBalance.total || 0} ETB</b>
+
+<b>⚡ QUICK ACTIONS:</b>
+Use the buttons below to manage draws, verify payments, or update settings.
+━━━━━━━━━━━━━━━━━━`;
+
+    const adminKeyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('🎰 Draw Winners Now', 'admin_draw_winners')],
+      [Markup.button.callback('💳 Pending Deposits', 'ask_for_photo')], 
+      [Markup.button.callback('📢 Broadcast Message', 'admin_broadcast')],
+      [Markup.button.callback('⚙️ Draw Settings', 'admin_settings')],
+      [Markup.button.callback('🔙 Close Panel', 'back_to_settings')]
+    ]);
+
+    return ctx.reply(adminDashboard, { 
+      parse_mode: 'HTML', 
+      ...adminKeyboard 
+    });
+
+  } catch (e) {
+    console.error("Admin Dashboard Error:", e);
+    return ctx.reply("🚨 <b>Error loading admin dashboard.</b>", { parse_mode: 'HTML' });
+  }
+});
     
      
   bot.hears('👥 Invite & Earn', async (ctx) => {
