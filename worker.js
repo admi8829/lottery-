@@ -263,20 +263,21 @@ bot.hears('🎟 New Ticket', async (ctx) => {
   const userId = ctx.from.id;
   
   try {
-    // 1. የዕጣ መረጃን እና የተጠቃሚውን ባላንስ ከዳታቤዝ ማምጣት
+    // 1. መረጃዎችን ከዳታቤዝ ማምጣት
     const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(userId).first();
-    const draw = await env.DB.prepare("SELECT * FROM draw_settings WHERE id = 1").first();
+    
+    // ማንኛውንም በዝርዝሩ መጀመሪያ ላይ ያለውን የዕጣ መረጃ እንዲያመጣ (id=1 ካልሰራ)
+    const draw = await env.DB.prepare("SELECT * FROM draw_settings LIMIT 1").first();
 
     const balance = user?.balance || 0;
-    const currentDraw = draw?.draw_name || "Weekly Grand Draw";
+    const currentDraw = draw?.draw_name || "Active Draw";
     const ticketPrice = 10;
 
-    // ሽልማቶቹን ከዳታቤዝ መውሰድ
-    const p1 = draw?.prize_1 || "Not Set";
-    const p2 = draw?.prize_2 || "Not Set";
-    const p3 = draw?.prize_3 || "Not Set";
+    // ሽልማቶቹን በግልጽ ማስቀመጥ
+    const p1 = draw?.prize_1 || "TBA";
+    const p2 = draw?.prize_2 || "TBA";
+    const p3 = draw?.prize_3 || "TBA";
 
-    // --- ሁኔታ 1: በቂ ብር ካለው ---
     if (balance >= ticketPrice) {
       const confirmKeyboard = Markup.inlineKeyboard([
         [Markup.button.callback('✅ Confirm Purchase (10 ETB)', 'buy_with_wallet')],
@@ -299,65 +300,33 @@ bot.hears('🎟 New Ticket', async (ctx) => {
 ━━━━━━━━━━━━━━━━━━
 <i>Click the button below to secure your entry! 🚀</i>`;
 
-      return ctx.reply(purchaseMsg, { 
-        parse_mode: 'HTML', 
-        ...confirmKeyboard 
-      });
-    } 
-
-    // --- ሁኔታ 2: በቂ ብር ከሌለው ---
-    else {
+      return ctx.reply(purchaseMsg, { parse_mode: 'HTML', ...confirmKeyboard });
+    } else {
+      // ብር ለሌለው ሰው የሚመጣ መልዕክት...
       const depositKeyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('📥 How to Deposit Money', 'show_deposit_info')],
-        [Markup.button.callback('📂 View My Tickets', 'view_my_tickets')],
-        [Markup.button.callback('👥 Invite Friends', 'view_invite_link')]
+        [Markup.button.callback('📥 Deposit Money', 'show_deposit_info')],
+        [Markup.button.callback('📂 View My Tickets', 'view_my_tickets')]
       ]);
-
-      const lowBalanceMsg = `
-<b>❌ INSUFFICIENT BALANCE!</b>
-━━━━━━━━━━━━━━━━━━
-To join the <b>${currentDraw}</b>, you need at least <b>10 ETB</b>.
-
-🎁 <b>Prizes you're missing out on:</b>
-• 1st: ${p1} | 2nd: ${p2} | 3rd: ${p3}
-
-📉 <b>Your Balance:</b> <code>${balance} ETB</code>
-━━━━━━━━━━━━━━━━━━
-<i>Please deposit funds or invite friends to participate!</i>`;
-
-      return ctx.reply(lowBalanceMsg, { 
-        parse_mode: 'HTML', 
-        ...depositKeyboard 
-      });
+      return ctx.reply(`<b>❌ Insufficient Balance!</b>\nYou need 10 ETB to join <b>${currentDraw}</b>.`, { parse_mode: 'HTML', ...depositKeyboard });
     }
-
   } catch (e) {
-    console.error("New Ticket Error:", e);
-    return ctx.reply("⚠️ <b>System Error:</b> Could not fetch prizes. Please try again.", { parse_mode: 'HTML' });
+    return ctx.reply("⚠️ Error: " + e.message);
   }
 });
-                                   
-    // 2. Buy Ticket (የተሻሻለ ዲዛይን)
-bot.action('buy_with_wallet', async (ctx) => {
+
+ bot.action('buy_with_wallet', async (ctx) => {
   const userId = ctx.from.id;
   const TICKET_PRICE = 10;
 
   try {
-    // 1. የባላንስ ቼክ (Atomic Transaction logic remains the same for safety)
     const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(userId).first();
 
-    if (!user) {
-      return ctx.answerCbQuery("⚠️ Account not found. Please restart /start", { show_alert: true });
+    if (!user || user.balance < TICKET_PRICE) {
+      return ctx.answerCbQuery("❌ Insufficient Funds!", { show_alert: true });
     }
 
-    if (user.balance < TICKET_PRICE) {
-      return ctx.answerCbQuery(`❌ Insufficient Funds! You need ${TICKET_PRICE} ETB.`, { show_alert: true });
-    }
-
-    // 2. ደህንነቱ የተጠበቀ የቲኬት ቁጥር ማመንጨት
     const ticketNumber = Math.floor(100000 + Math.random() * 900000);
 
-    // 3. ዳታቤዝ ላይ በአንድ ጊዜ ማደስ (Balance update + Ticket Insert)
     await env.DB.batch([
       env.DB.prepare("UPDATE users SET balance = balance - ? WHERE user_id = ? AND balance >= ?")
         .bind(TICKET_PRICE, userId, TICKET_PRICE),
@@ -365,13 +334,12 @@ bot.action('buy_with_wallet', async (ctx) => {
         .bind(userId, ticketNumber, new Date().toISOString())
     ]);
 
-    await ctx.answerCbQuery("💎 Purchase Successful!", { show_alert: false });
+    await ctx.answerCbQuery("💎 Purchase Successful!");
 
-    // 5. PREMIUM UI DESIGN (ተጠቃሚው ሲያየው ደስ እንዲለው)
     const successMessage = `
 🎊 <b>CONGRATULATIONS!</b> 🎊
 ━━━━━━━━━━━━━━━━━━
-Your ticket has been successfully issued. You are now officially in the draw!
+Your ticket has been successfully issued.
 
 ✨ <b>OFFICIAL TICKET</b> ✨
 ┌────────────────────┐
@@ -382,26 +350,24 @@ Your ticket has been successfully issued. You are now officially in the draw!
 
 📅 <b>DATE:</b> <code>${new Date().toLocaleString('en-GB')}</code>
 ━━━━━━━━━━━━━━━━━━
-<i>Wishing you the best of luck! You can view all your entries in the "My Tickets" section.</i>`;
+<i>Thank you for participating! Good luck.</i>`;
 
+    // አዝራሩን ወደ "Finished" ብቻ መቀየር
     const keyboard = Markup.inlineKeyboard([
-      [Markup.button.callback('🎟 Buy Another Ticket', 'buy_with_wallet')],
-      [Markup.button.callback('📂 View My Tickets', 'view_my_tickets')],
-      [Markup.button.callback('🏠 Main Menu', 'back_to_settings')]
+      [Markup.button.callback('✅ Finished', 'back_to_settings')]
     ]);
 
-    // መልዕክቱን ወደ ስኬታማው ገጽ ይቀይረዋል
     return ctx.editMessageText(successMessage, { 
       parse_mode: 'HTML', 
       ...keyboard 
     });
 
   } catch (e) {
-    console.error("Purchase Error:", e);
-    return ctx.answerCbQuery("🚨 System Busy. Please try again.", { show_alert: true });
+    console.error(e);
+    return ctx.answerCbQuery("🚨 System Error. Try again.");
   }
 });
-
+    
 bot.action('show_deposit_info', async (ctx) => {
   try {
     await ctx.answerCbQuery();
