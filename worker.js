@@ -592,7 +592,7 @@ bot.action('request_withdraw', async (ctx) => {
   return ctx.reply("📩 <b>Withdrawal Request</b>\nPlease contact @AdminUsername with your registered phone and the amount you wish to withdraw.", { parse_mode: 'HTML' });
 });
                               
-  bot.action('check_join', async (ctx) => {
+ /* bot.action('check_join', async (ctx) => {
   const channelId = "@SmartX_Ethio"; // የቻናልህ Username (@ ምልክት እንዳይረሳ)
   const userId = ctx.from.id;
 
@@ -613,7 +613,7 @@ bot.action('request_withdraw', async (ctx) => {
   } catch (e) {
     await ctx.answerCbQuery("Error verifying membership. Make sure the bot is Admin in the channel.", { show_alert: true });
   }
-});
+});*/
 
   bot.action('view_invite_link', async (ctx) => {
   const userId = ctx.from.id;
