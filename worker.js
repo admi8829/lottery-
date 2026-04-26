@@ -543,76 +543,68 @@ Your Link: <code>${inviteLink}</code>`;
   }
 });
 
-
-   bot.action('view_my_tickets', async (ctx) => {
+bot.action('view_my_tickets', async (ctx) => {
   const userId = ctx.from.id;
-
   try {
-    // 1. Fetch all tickets for this user from DB
-    const { results } = await env.DB.prepare(
-      "SELECT ticket_number, purchase_date FROM tickets WHERE user_id = ? ORDER BY purchase_date DESC"
-    ).bind(userId).all();
-
     await ctx.answerCbQuery();
+    
+    // 1. ሁሉንም የዚህን ሰው ቲኬቶች ከዳታቤዝ እናመጣለን
+    const tickets = await env.DB.prepare("SELECT ticket_number, status, purchase_date FROM tickets WHERE user_id = ? ORDER BY purchase_date DESC")
+      .bind(userId)
+      .all();
 
-    if (!results || results.length === 0) {
-      return ctx.editMessageText(
-        "<b>📂 MY TICKETS</b>\n━━━━━━━━━━━━━━━━━━\n" +
-        "You haven't purchased any tickets yet.\n\n" +
-        "Invite friends to earn <b>2 ETB</b> or deposit money to start playing!",
-        {
-          parse_mode: 'HTML',
-          ...Markup.inlineKeyboard([
-            [Markup.button.callback('🎟 Buy Your First Ticket', 'buy_with_wallet')],
-            [Markup.button.callback('🔙 Back to Wallet', 'back_to_wallet')]
-          ])
-        }
-      );
+    if (!tickets.results || tickets.results.length === 0) {
+      return ctx.editMessageText("<b>📂 My Tickets</b>\n━━━━━━━━━━━━━━━━━━\n<i>You haven't purchased any tickets yet.</i>", { 
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([[Markup.button.callback('🎟 Buy New Ticket', 'buy_with_wallet')]])
+      });
     }
 
- // 2. Build the ticket list string
-    let ticketList = `<b>📂 MY TICKETS (${results.length})</b>\n`;
-    ticketList += `━━━━━━━━━━━━━━━━━━\n`;
-    ticketList += `<i>Here are your officially registered entries:</i>\n\n`;
+    // 2. ቲኬቶችን በሁለት መለየት (Active vs Drawn/Expired)
+    let activeTickets = "";
+    let expiredTickets = "";
+    let activeCount = 0;
+    let expiredCount = 0;
 
-    results.forEach((ticket, index) => {
-      // Formatting the date (Optional: simplified)
-      const date = new Date(ticket.purchase_date).toLocaleDateString();
-      ticketList += `<b>${index + 1}.</b> <code>#${ticket.ticket_number}</code>  |  📅 ${date}\n`;
+    tickets.results.forEach((t) => {
+      const dateStr = new Date(t.purchase_date).toLocaleDateString();
+      if (t.status === 'active') {
+        activeCount++;
+        activeTickets += `🟢 <code>#${t.ticket_number}</code> - <pre>${dateStr}</pre>\n`;
+      } else {
+        expiredCount++;
+        expiredTickets += `🔴 <code>#${t.ticket_number}</code> - <pre>${dateStr}</pre>\n`;
+      }
     });
 
-    ticketList += `\n━━━━━━━━━━━━━━━━━━\n`;
-    ticketList += `<b>Status:</b> All entries are <code>Active ✅</code>`;
+    // 3. መልዕክቱን ማዘጋጀት
+    let finalMsg = `<b>📂 TICKET HISTORY</b>\n━━━━━━━━━━━━━━━━━━\n\n`;
+    
+    finalMsg += `<b>🎫 Active Entries (${activeCount})</b>\n`;
+    finalMsg += activeCount > 0 ? activeTickets : "<i>No active tickets</i>\n";
+    
+    finalMsg += `\n<b>⌛ Past Entries (${expiredCount})</b>\n`;
+    finalMsg += expiredCount > 0 ? expiredTickets : "<i>No past history</i>\n";
+    
+    finalMsg += `\n━━━━━━━━━━━━━━━━━━\n<i>Green (🟢) means currently in the draw.</i>`;
 
-    const keyboard = Markup.inlineKeyboard([
-      [Markup.button.callback('🎟 Buy More Tickets', 'buy_with_wallet')],
-      [Markup.button.callback('🔙 Back to Wallet', 'back_to_wallet')]
-    ]);
-
-    return ctx.editMessageText(ticketList, {
+    return ctx.editMessageText(finalMsg, { 
       parse_mode: 'HTML',
-      ...keyboard
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('🎟 Buy New', 'buy_with_wallet')],
+        [Markup.button.callback('🔙 Back', 'back_to_settings')]
+      ])
     });
 
   } catch (e) {
     console.error(e);
-    return ctx.reply("❌ Error fetching your tickets. Please try again.");
+    return ctx.reply("Error fetching your tickets.");
   }
-});
-
-// Also handle the "🎟 My Tickets" button from the main Reply Keyboard
-bot.hears('🎟 My Tickets', async (ctx) => {
-    // We can just trigger the same action logic
-    return ctx.reply("Fetching your tickets...", Markup.inlineKeyboard([
-        [Markup.button.callback('Click to View My Tickets', 'view_my_tickets')]
-    ]));
 });
       
 
 
-
-
-// ፎቶ እንዲልኩ መጠየቂያ
+    // ፎቶ እንዲልኩ መጠየቂያ
 bot.action('ask_for_photo', async (ctx) => {
   await ctx.answerCbQuery();
   return ctx.reply("<b>📸 Please upload your Screenshot now:</b>\nMake sure the transaction reference number is visible.", { parse_mode: 'HTML' });
