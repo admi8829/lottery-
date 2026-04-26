@@ -8,17 +8,26 @@ export default {
     const CHANNEL_ID = "@SmartX_Ethio"; // ያንተ ቻናል
 
     // --- 1. Keyboards ---
-    const mainKeyboard = Markup.keyboard([
-      ['🎟 New Ticket'],
-      ['🎟 My Tickets', '⚙️ Settings'],
-      ['🏆 Winners', '💰 Wallet & Invite'],
-      ['👥 Invite & Earn', '❓ Help']
-    ]).resize();
+    // 1. ዋናው ሜኑ (የቋንቋ አዝራር የተጨመረበት)
+const mainKeyboard = Markup.keyboard([
+  ['🎟 New Ticket'],
+  ['🎟 My Tickets', '⚙️ Settings'],
+  ['🏆 Winners', '💰 Wallet & Invite'],
+  ['👥 Invite & Earn', '❓ Help'],
+  ['🌐 Language'] 
+]).resize();
 
-    const requestPhoneKeyboard = Markup.keyboard([
-      [Markup.button.contactRequest('📲 ስልክ ቁጥሬን ላክ')]
-    ]).resize();
+// 2. ስልክ ቁጥር መጠየቂያ (ይህ መጥፋት የለበትም)
+const requestPhoneKeyboard = Markup.keyboard([
+  [Markup.button.contactRequest('📲 ስልክ ቁጥሬን ላክ')]
+]).resize();
 
+// 3. የቋንቋ ምርጫ (Inline Button)
+const languageKeyboard = Markup.inlineKeyboard([
+  [Markup.button.callback('አማርኛ 🇪🇹', 'set_lang_am'), 
+   Markup.button.callback('English 🇺🇸', 'set_lang_en')]
+]);
+    
     // --- 2. Start Command ---
 bot.start(async (ctx) => {
   try {
