@@ -31,14 +31,15 @@ const languageKeyboard = Markup.inlineKeyboard([
     // --- 2. Start Command ---
 bot.start(async (ctx) => {
   try {
-    const userId = ctx.from.id; // 1. እዚህ ጋር ተፈጥሯል
+    const userId = ctx.from.id; 
     const startPayload = ctx.startPayload;
     const CHANNEL_ID = "@SmartX_Ethio";
 
+    // 1. የቻናል ግዴታ ፍተሻ
     const member = await ctx.telegram.getChatMember(CHANNEL_ID, userId).catch(() => ({ status: 'left' }));
     const isMember = ['member', 'administrator', 'creator'].includes(member.status);
 
-    // 2. እዚህ ጋር 'let' ተጠቀምኩኝ ምክንያቱም እሴቱ (value) ሊቀየር ስለሚችል
+    // እዚህ ጋር 'let' ተጠቀምኩኝ ምክንያቱም ከታች 'user' የሚለውን ስም ደግመን ስለምንጠቀመው
     let user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
 
     if (!isMember) {
@@ -53,6 +54,7 @@ bot.start(async (ctx) => {
       });
     }
 
+    // 2. ተጠቃሚው ቀድሞ ካለና ስልክ ካለው
     if (user && user.phone) {
       return ctx.reply(`<b>Welcome back, ${user.name}!</b> 👋`, {
         parse_mode: 'HTML',
@@ -60,6 +62,7 @@ bot.start(async (ctx) => {
       });
     }
 
+    // 3. አዲስ ተጠቃሚን መመዝገብ
     let referrerId = null;
     if (startPayload && startPayload.startsWith('ref_')) {
       const ref = parseInt(startPayload.replace('ref_', ''));
@@ -70,25 +73,13 @@ bot.start(async (ctx) => {
       "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count, language) VALUES (?, ?, ?, ?, ?, ?)"
     ).bind(userId, ctx.from.first_name, referrerId, 0, 0, 'en').run();
 
-    // --- ማስተካከያው እዚህ ጋር ነው ---
-    // እዚህ ጋር 'const' የሚለውን አጥፍተነዋል ምክንያቱም userId ከላይ ተፈጥሯል
-    // 'user' የሚለውንም ያለ 'const' ነው የምንጠቀመው ምክንያቱም ከላይ ተፈጥሯል
+    // 4. ቋንቋውን መለየት (እዚህ ጋር 'const' ወይም 'let' አትጠቀም!)
     user = await env.DB.prepare("SELECT language FROM users WHERE user_id = ?").bind(userId).first();
     const lang = user ? user.language : 'en';
 
     const texts = {
-      en: `✨ <b>Welcome to SmartX Lottery!</b> ✨
-━━━━━━━━━━━━━━━━━━
-To start winning amazing prizes, please complete your registration.
-
-<b>Share your phone number</b> using the button below to verify your account.
-━━━━━━━━━━━━━━━━━━`,
-      am: `✨ <b>ወደ SmartX Lottery እንኳን ደህና መጡ!</b> ✨
-━━━━━━━━━━━━━━━━━━
-ታላላቅ ሽልማቶችን ማሸነፍ ለመጀመር፣ እባክዎ ምዝገባዎን ያጠናቅቁ።
-
-መለያዎን ለማረጋገጥ ከታች ያለውን አዝራር በመጫን <b>ስልክ ቁጥርዎን ያጋሩ</b>።
-━━━━━━━━━━━━━━━━━━`
+      en: `✨ <b>Welcome to SmartX Lottery!</b> ✨\n━━━━━━━━━━━━━━━━━━\nTo start winning amazing prizes, please complete your registration.\n\n<b>Share your phone number</b> using the button below to verify your account.\n━━━━━━━━━━━━━━━━━━`,
+      am: `✨ <b>ወደ SmartX Lottery እንኳን ደህና መጡ!</b> ✨\n━━━━━━━━━━━━━━━━━━\nታላላቅ ሽልማቶችን ማሸነፍ ለመጀመር፣ እባክዎ ምዝገባዎን ያጠናቅቁ።\n\nመለያዎን ለማረጋገጥ ከታች ያለውን አዝራር በመጫን <b>ስልክ ቁጥርዎን ያጋሩ</b>።\n━━━━━━━━━━━━━━━━━━`
     };
 
     return ctx.reply(texts[lang], {
@@ -99,6 +90,7 @@ To start winning amazing prizes, please complete your registration.
     return ctx.reply("Error: " + e.message);
   }
 });
+      
   
     
                            
