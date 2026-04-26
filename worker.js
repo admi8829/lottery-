@@ -17,7 +17,7 @@ export default {
     ]).resize();
 
     const requestPhoneKeyboard = Markup.keyboard([
-      [Markup.button.contactRequest('📲 ስልክ ቁጥሬን ላክ')]
+      [Markup.button.contactRequest('📲 send to phone ')]
     ]).resize();
 
     // --- 2. Start Command ---
