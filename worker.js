@@ -658,7 +658,7 @@ bot.action('contact_support', (ctx) => {
 });
 
     
-  bot.hears('👨‍💻 Developer', async (ctx) => {
+  bot.hears('👨‍💻 Contact Developer', async (ctx) => {
   const devMessage = `
 <b>🚀 NEED A CUSTOM DIGITAL SOLUTION?</b>
 ━━━━━━━━━━━━━━━━━━
