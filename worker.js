@@ -296,7 +296,7 @@ bot.hears('🎟 New Ticket', async (ctx) => {
       ]);
 
       const purchaseMsg = `
-✨ <b>NEW TICKET  PURCHASE</b> ✨
+✨ <b>NEW TICKET Oakton, United States  PURCHASE</b> ✨
 ━━━━━━━━━━━━━━━━━━
 🏆 <b>Event:</b> <code>${currentDraw}</code>
 ${prizeSection}
