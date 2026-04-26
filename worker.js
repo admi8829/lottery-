@@ -12,12 +12,12 @@ export default {
     // --- 1. Keyboards ---
 const mainKeyboard = Markup.keyboard([
   ['🎟 New Ticket'],
-  ['🎟 My Tickets', '⚙️ Settings'],
-  ['🏆 Winners', '💰 Wallet & Invite'],
-  ['👥 Invite & Earn', '❓ Help'],
-  ['🛡 Privacy', '👨‍✈️ Admin'],
-  ['👨‍💻 Contact Developer'] // ይህ አዝራር ብቻውን ስለሆነ በስልኩ ስፋት ልክ ረጅም ይሆናል
+  ['🎟 My Tickets', '💰 Wallet & Invite'],
+  ['🏆 Winners', '👥 Invite & Earn'],
+  ['⚙️ Settings', '❓ Help', '🛡 Privacy'], // ሦስቱንም በአንድ መስመር
+  ['👨‍✈️ Admin', '👨‍💻 Contact Developer'] // አድሚን እና ዴቨሎፐርን ጎን ለጎን
 ]).resize();
+    
     
 
     const requestPhoneKeyboard = Markup.keyboard([
