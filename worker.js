@@ -6,7 +6,8 @@ export default {
     
     const bot = new Telegraf(env.BOT_TOKEN);
     const CHANNEL_ID = "@SmartX_Ethio"; // ያንተ ቻናል
-
+    const ADMIN_ID = 8344169004;
+    
     // --- 1. Keyboards ---
     const mainKeyboard = Markup.keyboard([
       ['🎟 New Ticket'],
