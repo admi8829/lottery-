@@ -263,24 +263,35 @@ bot.hears('🎟 New Ticket', async (ctx) => {
   const userId = ctx.from.id;
   
   try {
-    // 1. መረጃዎችን ከዳታቤዝ ማምጣት
+    // 1. መረጃዎችን ከዳታቤዝ ማምጣት (Security: ተጠቃሚው መኖሩን እናረጋግጣለን)
     const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(userId).first();
-    
-    // ማንኛውንም በዝርዝሩ መጀመሪያ ላይ ያለውን የዕጣ መረጃ እንዲያመጣ (id=1 ካልሰራ)
     const draw = await env.DB.prepare("SELECT * FROM draw_settings LIMIT 1").first();
 
-    const balance = user?.balance || 0;
-    const currentDraw = draw?.draw_name || "Active Draw";
+    // ተጠቃሚው ዳታቤዝ ውስጥ ካልተመዘገበ (Security Check)
+    if (!user) {
+      return ctx.reply("⚠️ <b>Account Not Found!</b>\nPlease restart the bot by sending /start", { parse_mode: 'HTML' });
+    }
+
+    const balance = user.balance || 0;
+    const currentDraw = draw?.draw_name || "Weekly Grand Draw";
     const ticketPrice = 10;
 
-    // ሽልማቶቹን በግልጽ ማስቀመጥ
+    // ሽልማቶቹን ከዳታቤዝ ማምጣት (id=1 ካልሰራ LIMIT 1 ያመጣዋል)
     const p1 = draw?.prize_1 || "TBA";
     const p2 = draw?.prize_2 || "TBA";
     const p3 = draw?.prize_3 || "TBA";
 
+    // የጋራ የሽልማት ዝርዝር ዲዛይን (ለሁለቱም ሁኔታዎች እንዲያገለግል)
+    const prizeSection = `
+🎁 <b>AVAILABLE PRIZES:</b>
+🥇 1st Prize: <b>${p1}</b>
+🥈 2nd Prize: <b>${p2}</b>
+🥉 3rd Prize: <b>${p3}</b>`;
+
+    // --- ሁኔታ 1: በቂ ብር ካለው ---
     if (balance >= ticketPrice) {
       const confirmKeyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('✅ Confirm Purchase (88 ETB)', 'buy_with_wallet')],
+        [Markup.button.callback(`✅ Confirm Purchase (${ticketPrice} ETB)`, 'buy_with_wallet')],
         [Markup.button.callback('❌ Cancel', 'back_to_wallet')]
       ]);
 
@@ -288,12 +299,7 @@ bot.hears('🎟 New Ticket', async (ctx) => {
 ✨ <b>NEW TICKET PURCHASE</b> ✨
 ━━━━━━━━━━━━━━━━━━
 🏆 <b>Event:</b> <code>${currentDraw}</code>
-
-🎁 <b>AVAILABLE PRIZES:</b>
-🥇 1st Prize: <b>${p1}</b>
-🥈 2nd Prize: <b>${p2}</b>
-🥉 3rd Prize: <b>${p3}</b>
-
+${prizeSection}
 ━━━━━━━━━━━━━━━━━━
 💰 <b>Ticket Price:</b> <code>${ticketPrice} ETB</code>
 💳 <b>Your Balance:</b> <code>${balance} ETB</code>
@@ -301,18 +307,36 @@ bot.hears('🎟 New Ticket', async (ctx) => {
 <i>Click the button below to secure your entry! 🚀</i>`;
 
       return ctx.reply(purchaseMsg, { parse_mode: 'HTML', ...confirmKeyboard });
-    } else {
-      // ብር ለሌለው ሰው የሚመጣ መልዕክት...
+    } 
+
+    // --- ሁኔታ 2: በቂ ብር ከሌለው (አሁን እዚህም የሽልማት ዝርዝሩ ይመጣል) ---
+    else {
       const depositKeyboard = Markup.inlineKeyboard([
         [Markup.button.callback('📥 Deposit Money', 'show_deposit_info')],
+        [Markup.button.callback('👥 Invite Friends', 'view_invite_link')],
         [Markup.button.callback('📂 View My Tickets', 'view_my_tickets')]
       ]);
-      return ctx.reply(`<b>❌ Insufficient Balance!</b>\nYou need 10 ETB to join <b>${currentDraw}</b>.`, { parse_mode: 'HTML', ...depositKeyboard });
+
+      const lowBalanceMsg = `
+<b>❌ INSUFFICIENT BALANCE!</b>
+━━━━━━━━━━━━━━━━━━
+🏆 <b>Event:</b> <code>${currentDraw}</code>
+${prizeSection}
+━━━━━━━━━━━━━━━━━━
+📉 <b>Your Balance:</b> <code>${balance} ETB</code>
+🎟 <b>Required:</b> <code>${ticketPrice} ETB</code>
+
+<i>You need more balance to win these amazing prizes! Deposit now or invite friends to earn.</i>`;
+
+      return ctx.reply(lowBalanceMsg, { parse_mode: 'HTML', ...depositKeyboard });
     }
+
   } catch (e) {
-    return ctx.reply("⚠️ Error: " + e.message);
+    console.error("New Ticket Error:", e);
+    return ctx.reply("⚠️ <b>System Error:</b> Please try again later.");
   }
 });
+  
 
  bot.action('buy_with_wallet', async (ctx) => {
   const userId = ctx.from.id;
