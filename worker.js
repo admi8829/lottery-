@@ -23,10 +23,10 @@ const requestPhoneKeyboard = Markup.keyboard([
 ]).resize();
 
 // 3. የቋንቋ ምርጫ (Inline Button)
-const languageKeyboard = Markup.inlineKeyboard([
+* /*const languageKeyboard = Markup.inlineKeyboard([
   [Markup.button.callback('አማርኛ 🇪🇹', 'set_lang_am'), 
    Markup.button.callback('English 🇺🇸', 'set_lang_en')]
-]);
+]);*/
     
     // --- 2. Start Command ---
 bot.start(async (ctx) => {
