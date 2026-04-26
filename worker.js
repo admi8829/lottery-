@@ -110,17 +110,25 @@ Your account is now fully active.
 
     // --- [ 1. የአድሚን ሜኑ ትዕዛዝ ] ---
 bot.command('admin_menu', async (ctx) => {
-  const adminId = 8344169004; // ያንተ ID በትክክል ተገብቷል
-  if (ctx.from.id !== adminId) return;
+  // Check if the user is the authorized admin
+  if (ctx.from.id !== ADMIN_ID) return; 
 
-  return ctx.reply("<b>🛠 የአድሚን መቆጣጠሪያ ገጽ</b>\n\nከታች ያለውን አዝራር በመጫን የዙሩን 3 አሸናፊዎች በዘፈቀደ ማውጣት ይችላሉ።", {
+  const adminMsg = `
+<b>🛠 Admin Control Panel</b>
+━━━━━━━━━━━━━━━━━━
+Welcome back, Admin! Use the button below to randomly select 3 winners for the current active draw.
+
+<b>⚠️ Note:</b> This action is irreversible.
+━━━━━━━━━━━━━━━━━━`;
+
+  return ctx.reply(adminMsg, {
     parse_mode: 'HTML',
     ...Markup.inlineKeyboard([
-      [Markup.button.callback('🎰 ዕጣውን አሁን አውጣ', 'admin_draw_winners')]
+      [Markup.button.callback('🎰 Draw Winners Now', 'admin_draw_winners')]
     ])
   });
 });
-
+    
 // --- [ 2. ዕጣውን የሚያወጣው ተግባር (Action) ] ---
 bot.action('admin_draw_winners', async (ctx) => {
   const adminId = 8344169004; // ያንተ ID እዚህም ተስተካክሏል
