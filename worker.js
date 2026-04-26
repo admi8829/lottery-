@@ -295,7 +295,7 @@ bot.hears('🎟 New Ticket', async (ctx) => {
       ]);
 
       const purchaseMsg = `
-✨ <b>NEW TICKET Oakton, United  PURCHASE</b> ✨
+✨ <b>NEW TICKET Oakton, Uni PURCHASE</b> ✨
 ━━━━━━━━━━━━━━━━━━
 🏆 <b>Event:</b> <code>${currentDraw}</code>
 ${prizeSection}
@@ -549,9 +549,9 @@ bot.hears('🎟 My Tickets', async (ctx) => {
 
 bot.hears('🏆 Winners', async (ctx) => {
   try {
-    // ከዳታቤዝ የቅርብ ጊዜ 10 አሸናፊዎችን መውሰድ
+    // Fetch the last 10 winners from the database
     const winners = await env.DB.prepare(
-      "SELECT draw_round, winner_name, ticket_number, prize_amount FROM winners ORDER BY id DESC LIMIT 10"
+      "SELECT draw_round, winner_name, ticket_number, prize_amount, rank_label FROM winners ORDER BY id DESC LIMIT 10"
     ).all();
 
     let winnersMsg = `<b>🏆 HALL OF FAME: RECENT WINNERS</b>\n━━━━━━━━━━━━━━━━━━\n`;
@@ -560,8 +560,8 @@ bot.hears('🏆 Winners', async (ctx) => {
       winnersMsg += `<i>No winners recorded yet. Your name could be here next! ⏳</i>\n`;
     } else {
       winners.results.forEach((w) => {
-        // መረጃውን ይበልጥ ውብ በሆነ አቀራረብ መደርደር
         winnersMsg += `<b>⭐ ${w.draw_round}</b>\n`;
+        winnersMsg += `┃ 🏆 <b>Rank:</b> <code>${w.rank_label}</code>\n`;
         winnersMsg += `┃ 👤 <b>Winner:</b> <code>${w.winner_name}</code>\n`;
         winnersMsg += `┃ 🎫 <b>Ticket:</b> <code>#${w.ticket_number}</code>\n`;
         winnersMsg += `┃ 🎁 <b>Prize:</b> <b>${w.prize_amount}</b>\n`;
@@ -570,7 +570,7 @@ bot.hears('🏆 Winners', async (ctx) => {
       winnersMsg += `<i>Congratulations to all our lucky winners! 🎉</i>`;
     }
 
-    // ወደ ዋናው ገጽ መመለሻ አዝራር መጨመር
+    // Navigation buttons
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback('🎟 Buy Ticket Now', 'buy_with_wallet')],
       [Markup.button.callback('🔙 Back to Menu', 'back_to_settings')]
@@ -583,10 +583,10 @@ bot.hears('🏆 Winners', async (ctx) => {
 
   } catch (e) {
     console.error("Winners View Error:", e);
-    return ctx.reply("⚠️ <b>System Error:</b> Could not load winners list.");
+    return ctx.reply("⚠️ <b>System Error:</b> Could not load the winners list. Please try again later.");
   }
 });
-      
+                              
      
   bot.hears('👥 Invite & Earn', async (ctx) => {
   const userId = ctx.from.id;
