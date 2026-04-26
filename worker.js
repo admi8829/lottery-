@@ -610,7 +610,52 @@ bot.hears('🏆 Winners', async (ctx) => {
     return ctx.reply("⚠️ <b>System Error:</b> Could not load the winners list. Please try again later.");
   }
 });
-                              
+
+    bot.hears('❓ Help', async (ctx) => {
+  const helpMessage = `
+<b>❓ SMARTX HELP CENTER</b>
+━━━━━━━━━━━━━━━━━━
+Welcome to the help section! Here is everything you need to know about using the <b>SmartX Lottery Bot</b>.
+
+<b>1. How to Buy a Ticket?</b>
+• Go to the <b>Main Menu</b> and click on <b>🎟 New Ticket</b>.
+• Ensure you have at least <b>10 ETB</b> in your wallet.
+• Confirm your purchase to receive your unique ticket number.
+
+<b>2. How to Deposit Money?</b>
+• Click on <b>💰 Wallet & Invite</b> and then <b>📥 Deposit</b>.
+• Choose your preferred payment method (Telebirr, CBE, etc.).
+• Send the money and <b>Upload a Screenshot</b> of the receipt for admin verification.
+
+<b>3. How to Earn for Free?</b>
+• Use the <b>👥 Invite & Earn</b> section to get your referral link.
+• Share it with friends! You will receive <b>2 ETB</b> for every person who joins and registers.
+
+<b>4. When is the Draw?</b>
+• Draws are held regularly. You can check the <b>🏆 Winners</b> section to see results from previous rounds.
+
+<b>5. Still need assistance?</b>
+• If you have any issues with payments or tickets, contact our support team directly.
+━━━━━━━━━━━━━━━━━━
+👤 <b>Support:</b> @AdminUsername
+📢 <b>Channel:</b> @SmartX_Ethio`;
+
+  const helpKeyboard = Markup.inlineKeyboard([
+    [Markup.button.callback('👨‍💻 Contact Support', 'contact_support')],
+    [Markup.button.callback('🔙 Back to Menu', 'back_to_settings')]
+  ]);
+
+  return ctx.reply(helpMessage, { 
+    parse_mode: 'HTML', 
+    ...helpKeyboard 
+  });
+});
+
+// ለ Contact Support አዝራር የሚሆን ምላሽ
+bot.action('contact_support', (ctx) => {
+  return ctx.reply("<b>📩 Support Inquiry</b>\nPlease send your message directly to @AdminUsername. Make sure to include your User ID if it's a payment issue.", { parse_mode: 'HTML' });
+});
+    
      
   bot.hears('👥 Invite & Earn', async (ctx) => {
   const userId = ctx.from.id;
