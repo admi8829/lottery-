@@ -406,6 +406,21 @@ Choose your preferred method to add balance to your wallet.
   }
 });
     
+
+  bot.action('back_to_settings', async (ctx) => {
+  try {
+    // 1. የቆየውን የቲኬት ማረጋገጫ መልዕክት ያጠፋዋል
+    await ctx.deleteMessage().catch(() => {});
+
+    // 2. ተጠቃሚውን ወደ ዋናው ገጽ መልሶ አዲስ መልዕክት ይልካል
+    return ctx.reply(`<b>🏠 Main Menu</b>\n━━━━━━━━━━━━━━━━━━\nWelcome back! What would you like to do next?`, {
+      parse_mode: 'HTML',
+      ...mainKeyboard // ይህ ከላይ የፈጠርከው Reply Keyboard ነው
+    });
+  } catch (e) {
+    console.error("Back to menu error:", e);
+  }
+});
     
   bot.hears('👥 Invite & Earn', async (ctx) => {
   const userId = ctx.from.id;
