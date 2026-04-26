@@ -292,11 +292,11 @@ bot.hears('🎟 New Ticket', async (ctx) => {
     if (balance >= ticketPrice) {
       const confirmKeyboard = Markup.inlineKeyboard([
         [Markup.button.callback(`✅ Confirm Purchase (${ticketPrice} ETB)`, 'buy_with_wallet')],
-        [Markup.button.callback('❌ Cancel', 'back_to_wallet')]
+        [Markup.button.callback('❌ Cancel', 'action_cancelled')]
       ]);
 
       const purchaseMsg = `
-✨ <b>NEW TICKET to  PURCHASE</b> ✨
+✨ <b>NEW TICKET  PURCHASE</b> ✨
 ━━━━━━━━━━━━━━━━━━
 🏆 <b>Event:</b> <code>${currentDraw}</code>
 ${prizeSection}
