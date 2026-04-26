@@ -28,22 +28,9 @@ export default {
         
         const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
 
-        if (user && user.phone) {
-          const welcomeBackMsg = `
-👋 <b>Welcome Back, ${user.name}!</b>
-━━━━━━━━━━━━━━━━━━
-Your account is fully verified and active. 🔓
-
-Ready to test your luck today? 
-Choose an option from the menu below to get started!
-━━━━━━━━━━━━━━━━━━`;
-
-          return ctx.reply(welcomeBackMsg, { 
-            parse_mode: 'HTML', 
-            ...mainKeyboard 
-          });
-                }
-        
+    If (user && user.phone) {
+          return ctx.reply(`<b>Welcome message back, ${user.name}!</b> 👋`, { parse_mode: 'HTML', ...mainKeyboard });
+        } 
 
         let referrerId = null;
         if (startPayload && startPayload.startsWith('ref_')) {
