@@ -131,12 +131,14 @@ Welcome back, Admin! Use the button below to randomly select 3 winners for the c
     
 // --- [ 2. ዕጣውን የሚያወጣው ተግባር (Action) ] ---
 bot.action('admin_draw_winners', async (ctx) => {
-  const adminId = 8344169004; // ያንተ ID እዚህም ተስተካክሏል
-  if (ctx.from.id !== adminId) return ctx.answerCbQuery("Unauthorized!");
+  // Use the global ADMIN_ID constant
+  if (ctx.from.id !== ADMIN_ID) return ctx.answerCbQuery("Unauthorized!");
 
   try {
-    // 1. የዕጣ መረጃውን እና 3 አሸናፊዎችን ከዳታቤዝ በዘፈቀደ መምረጥ
+    // 1. Fetch draw settings and 3 random winners
     const drawSettings = await env.DB.prepare("SELECT * FROM draw_settings WHERE id = 1").first();
+    
+    // Selecting winners where status is 'active'
     const winners = await env.DB.prepare(
       `SELECT t.ticket_number, t.user_id, u.name 
        FROM tickets t 
@@ -145,52 +147,57 @@ bot.action('admin_draw_winners', async (ctx) => {
        ORDER BY RANDOM() LIMIT 3`
     ).all();
 
-    // ቢያንስ 3 ሰው መኖሩን ቼክ ማድረግ
+    // Check if there are at least 3 active tickets
     if (!winners.results || winners.results.length < 3) {
-      return ctx.reply("❌ ዕጣ ለማውጣት ቢያንስ 3 'Active' ቲኬቶች መሸጥ አለባቸው።");
+      return ctx.reply("❌ <b>Draw Failed:</b> At least 3 'Active' tickets are required to perform a draw.", { parse_mode: 'HTML' });
     }
 
-    // የሽልማት አይነቶችን ከዳታቤዝ መውሰድ
     const prizes = [drawSettings.prize_1, drawSettings.prize_2, drawSettings.prize_3];
-    let announcementText = `🎊 <b>የዕጣ ውጤት መግለጫ</b> 🎊\n━━━━━━━━━━━━━━━━━━\n<b>🏆 እጣው፡</b> ${drawSettings.draw_name}\n\n`;
+    let announcementText = `🎊 <b>OFFICIAL DRAW RESULTS</b> 🎊\n━━━━━━━━━━━━━━━━━━\n<b>🏆 Event:</b> ${drawSettings.draw_name || "Weekly Grand Draw"}\n\n`;
 
-    // 2. አሸናፊዎችን በ Loop መመዝገብ እና ማሳወቅ
+    // 2. Loop through winners, save to DB and notify them
     for (let i = 0; i < winners.results.length; i++) {
       const winner = winners.results[i];
       const prize = prizes[i];
 
-      // በ Winners Table መመዝገብ
+      // Register the winner in the Winners Table
       await env.DB.prepare(
-        "INSERT INTO winners (user_id, ticket_number, prize_amount) VALUES (?, ?, ?)"
-      ).bind(winner.user_id, winner.ticket_number, prize).run();
+        "INSERT INTO winners (user_id, ticket_number, prize_amount, draw_date) VALUES (?, ?, ?, ?)"
+      ).bind(winner.user_id, winner.ticket_number, prize, new Date().toISOString()).run();
 
-      // ለአሸናፊው የግል መልዕክት (Inbox) መላክ
+      // Send private message to the winner
       try {
-        await ctx.telegram.sendMessage(winner.user_id, 
-          `🎉 <b>እንኳን ደስ አለዎት!</b>\nየእርስዎ ቲኬት <b>#${winner.ticket_number}</b> የ <b>${prize}</b> አሸናፊ ሆኗል!`, 
-          { parse_mode: 'HTML' });
+        const winnerMsg = `
+🎉 <b>CONGRATULATIONS!</b>
+━━━━━━━━━━━━━━━━━━
+Your ticket <b>#${winner.ticket_number}</b> has won the <b>${prize}</b> prize in the ${drawSettings.draw_name}!
+
+Please contact support to claim your prize.
+━━━━━━━━━━━━━━━━━━`;
+        await ctx.telegram.sendMessage(winner.user_id, winnerMsg, { parse_mode: 'HTML' });
       } catch (e) {
-        console.log(`Notification failed for user ${winner.user_id}`);
+        console.log(`Failed to notify user ${winner.user_id}`);
       }
 
-      // ውጤቱን ለጠቅላላ ማስታወቂያ ማዘጋጀት
+      // Build the public announcement text
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
-      announcementText += `${medal} <b>${prize} አሸናፊ፡</b>\n👤 ${winner.name} (🎫 #${winner.ticket_number})\n\n`;
+      announcementText += `${medal} <b>${prize} Winner:</b>\n👤 ${winner.name} (🎫 #${winner.ticket_number})\n\n`;
     }
 
-    // 3. ሁሉንም የዙሩን ቲኬቶች Expired ማድረግ (በጣም አስፈላጊ!)
+    // 3. Mark all active tickets as 'expired' for this round
     await env.DB.prepare("UPDATE tickets SET status = 'expired' WHERE status = 'active'").run();
 
-    announcementText += `━━━━━━━━━━━━━━━━━━\n<i>እንኳን ደስ አላችሁ! ለሁሉም ተጠቃሚዎች ውጤቱ ተልኳል።</i>`;
+    announcementText += `━━━━━━━━━━━━━━━━━━\n<i>All winners have been notified. Congratulations to everyone!</i>`;
     
-    // ለአድሚኑ ውጤቱን ማሳየት
+    // Show results to the Admin
     return ctx.reply(announcementText, { parse_mode: 'HTML' });
 
   } catch (e) {
-    return ctx.reply("Error during draw: " + e.message);
+    console.error("Draw Error:", e);
+    return ctx.reply("🚨 <b>Critical Error:</b> " + e.message, { parse_mode: 'HTML' });
   }
 });
-  
+    
     
 
  bot.hears('🎟 New Ticket', async (ctx) => {
