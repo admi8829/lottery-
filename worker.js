@@ -447,7 +447,8 @@ bot.action('back_to_settings', async (ctx) => {
   }
 });
     
-   bot.hears('🎟 My Tickets', async (ctx) => {
+// 🎟 My Tickets አዝራር ሲጫን ቀጥታ ዝርዝሩን እንዲያሳይ
+bot.hears('🎟 My Tickets', async (ctx) => {
   const userId = ctx.from.id;
   try {
     // 1. ሁሉንም የዚህን ሰው ቲኬቶች ከዳታቤዝ ማምጣት
@@ -480,7 +481,7 @@ bot.action('back_to_settings', async (ctx) => {
       }
     });
 
-    // 3. የመልዕክቱ አቀራረብ (ከ View My Tickets ጋር አንድ አይነት)
+    // 3. የመልዕክቱ አቀራረብ
     let finalMsg = `<b>📂 TICKET HISTORY</b>\n━━━━━━━━━━━━━━━━━━\n\n`;
     
     finalMsg += `<b>🎫 Active Entries (${activeCount})</b>\n`;
@@ -500,10 +501,11 @@ bot.action('back_to_settings', async (ctx) => {
     });
 
   } catch (e) {
-    console.error("My Tickets Hears Error:", e);
-    return ctx.reply("⚠️ Error fetching your tickets. Please try again.");
+    console.error("My Tickets Error:", e);
+    return ctx.reply("⚠️ Error fetching your tickets.");
   }
 });
+          
      
   bot.hears('👥 Invite & Earn', async (ctx) => {
   const userId = ctx.from.id;
