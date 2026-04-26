@@ -8,86 +8,54 @@ export default {
     const CHANNEL_ID = "@SmartX_Ethio"; // ያንተ ቻናል
 
     // --- 1. Keyboards ---
-    // 1. ዋናው ሜኑ (የቋንቋ አዝራር የተጨመረበት)
-const mainKeyboard = Markup.keyboard([
-  ['🎟 New Ticket'],
-  ['🎟 My Tickets', '⚙️ Settings'],
-  ['🏆 Winners', '💰 Wallet & Invite'],
-  ['👥 Invite & Earn', '❓ Help'],
-  ['🌐 Language'] 
-]).resize();
+    const mainKeyboard = Markup.keyboard([
+      ['🎟 New Ticket'],
+      ['🎟 My Tickets', '⚙️ Settings'],
+      ['🏆 Winners', '💰 Wallet & Invite'],
+      ['👥 Invite & Earn', '❓ Help']
+    ]).resize();
 
-// 2. ስልክ ቁጥር መጠየቂያ (ይህ መጥፋት የለበትም)
-const requestPhoneKeyboard = Markup.keyboard([
-  [Markup.button.contactRequest('📲 ስልክ ቁጥሬን ላክ')]
-]).resize();
-    
+    const requestPhoneKeyboard = Markup.keyboard([
+      [Markup.button.contactRequest('📲 ስልክ ቁጥሬን ላክ')]
+    ]).resize();
+
     // --- 2. Start Command ---
-bot.start(async (ctx) => {
-  try {
-    const userId = ctx.from.id; 
-    const startPayload = ctx.startPayload;
-    const CHANNEL_ID = "@SmartX_Ethio";
+    bot.start(async (ctx) => {
+      try {
+        const userId = ctx.from.id;
+        const startPayload = ctx.startPayload;
+        
+        const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
 
-    // 1. የቻናል ግዴታ ፍተሻ
-    const member = await ctx.telegram.getChatMember(CHANNEL_ID, userId).catch(() => ({ status: 'left' }));
-    const isMember = ['member', 'administrator', 'creator'].includes(member.status);
+        if (user && user.phone) {
+          return ctx.reply(`<b>Welcome back, ${user.name}!</b> 👋`, { parse_mode: 'HTML', ...mainKeyboard });
+        }
 
-    // እዚህ ጋር 'let' ተጠቀምኩኝ ምክንያቱም ከታች 'user' የሚለውን ስም ደግመን ስለምንጠቀመው
-    let user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
+        let referrerId = null;
+        if (startPayload && startPayload.startsWith('ref_')) {
+          const ref = parseInt(startPayload.replace('ref_', ''));
+          if (ref !== userId) referrerId = ref;
+        }
 
-    if (!isMember) {
-      const forceJoinKeyboard = Markup.inlineKeyboard([
-        [Markup.button.url('📢 Join Our Channel', `https://t.me/${CHANNEL_ID.replace('@', '')}`)],
-        [Markup.button.callback('✅ I have Joined', 'check_join')]
-      ]);
+        await env.DB.prepare(
+          "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, ?, ?)"
+        ).bind(userId, ctx.from.first_name, referrerId, 0, 0).run();
 
-      return ctx.reply(`<b>⚠️ Access Denied!</b>\n\nYou must join our channel to use this bot.`, {
-        parse_mode: 'HTML',
-        ...forceJoinKeyboard
-      });
-    }
+        const welcomeMsg = `
+✨ <b>Welcome to SmartX Lottery!</b> ✨
+━━━━━━━━━━━━━━━━━━
+To start winning amazing prizes, please complete your registration.
 
-    // 2. ተጠቃሚው ቀድሞ ካለና ስልክ ካለው
-    if (user && user.phone) {
-      return ctx.reply(`<b>Welcome back, ${user.name}!</b> 👋`, {
-        parse_mode: 'HTML',
-        ...mainKeyboard
-      });
-    }
+<b>1. Join our channel:</b> ${CHANNEL_ID}
+<b>2. Share your phone number</b> using the button below.
+━━━━━━━━━━━━━━━━━━`;
 
-    // 3. አዲስ ተጠቃሚን መመዝገብ
-    let referrerId = null;
-    if (startPayload && startPayload.startsWith('ref_')) {
-      const ref = parseInt(startPayload.replace('ref_', ''));
-      if (ref !== userId) referrerId = ref;
-    }
-
-    await env.DB.prepare(
-      "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count, language) VALUES (?, ?, ?, ?, ?, ?)"
-    ).bind(userId, ctx.from.first_name, referrerId, 0, 0, 'en').run();
-
-    // 4. ቋንቋውን መለየት (እዚህ ጋር 'const' ወይም 'let' አትጠቀም!)
-    user = await env.DB.prepare("SELECT language FROM users WHERE user_id = ?").bind(userId).first();
-    const lang = user ? user.language : 'en';
-
-    const texts = {
-      en: `✨ <b>Welcome to SmartX Lottery!</b> ✨\n━━━━━━━━━━━━━━━━━━\nTo start winning amazing prizes, please complete your registration.\n\n<b>Share your phone number</b> using the button below to verify your account.\n━━━━━━━━━━━━━━━━━━`,
-      am: `✨ <b>ወደ SmartX Lottery እንኳን ደህና መጡ!</b> ✨\n━━━━━━━━━━━━━━━━━━\nታላላቅ ሽልማቶችን ማሸነፍ ለመጀመር፣ እባክዎ ምዝገባዎን ያጠናቅቁ።\n\nመለያዎን ለማረጋገጥ ከታች ያለውን አዝራር በመጫን <b>ስልክ ቁጥርዎን ያጋሩ</b>።\n━━━━━━━━━━━━━━━━━━`
-    };
-
-    return ctx.reply(texts[lang], {
-      parse_mode: 'HTML',
-      ...requestPhoneKeyboard
+        return ctx.reply(welcomeMsg, { parse_mode: 'HTML', ...requestPhoneKeyboard });
+      } catch (e) {
+        return ctx.reply("Error: " + e.message);
+      }
     });
-  } catch (e) {
-    return ctx.reply("Error: " + e.message);
-  }
-});
-      
-  
     
-                           
     // --- 3. Phone Verification & Draw Info Display ---
     bot.on('contact', async (ctx) => {
       try {
@@ -361,32 +329,6 @@ Your Link: <code>${inviteLink}</code>`;
   }
 });
 
-    // ቋንቋ እንዲመርጥ መጠየቅ
-bot.hears('🌐 Language', async (ctx) => {
-  const languageKeyboard = Markup.inlineKeyboard([
-    [Markup.button.callback('አማርኛ 🇪🇹', 'set_lang_am'), Markup.button.callback('English 🇺🇸', 'set_lang_en')]
-  ]);
-  
-  return ctx.reply("<b>Choose your language / ቋንቋዎን ይምረጡ:</b>", {
-    parse_mode: 'HTML',
-    ...languageKeyboard
-  });
-});
-
-// ወደ አማርኛ መቀየር
-bot.action('set_lang_am', async (ctx) => {
-  await env.DB.prepare("UPDATE users SET language = ? WHERE user_id = ?").bind('am', ctx.from.id).run();
-  await ctx.answerCbQuery("ቋንቋ ወደ አማርኛ ተቀይሯል!");
-  return ctx.editMessageText("✅ ቋንቋዎ ወደ <b>አማርኛ</b> ተቀይሯል።", { parse_mode: 'HTML' });
-});
-
-// ወደ እንግሊዝኛ መቀየር
-bot.action('set_lang_en', async (ctx) => {
-  await env.DB.prepare("UPDATE users SET language = ? WHERE user_id = ?").bind('en', ctx.from.id).run();
-  await ctx.answerCbQuery("Language set to English!");
-  return ctx.editMessageText("✅ Your language has been set to <b>English</b>.", { parse_mode: 'HTML' });
-});
-  
 
 // 2. Buy Ticket (በዳታቤዝ የሚመዘግብ)
 bot.action('buy_with_wallet', async (ctx) => {
@@ -597,20 +539,19 @@ Select an amount to approve:`;
     
 // 1. የቻናል ግዴታን የሚያረጋግጥ Action
 bot.action('check_join', async (ctx) => {
-  const CHANNEL_ID = "@SmartX_Ethio";
+  const CHANNEL_ID = "@SmartX_Ethio"; // ያንተ ቻናል ID
   const userId = ctx.from.id;
 
   try {
+    // በቴሌግራም ሲስተም ተጠቃሚው አባል መሆኑን ቼክ ማድረግ
     const member = await ctx.telegram.getChatMember(CHANNEL_ID, userId);
     const isMember = ['member', 'administrator', 'creator'].includes(member.status);
 
     if (isMember) {
-      await ctx.answerCbQuery("🎉 እንኳን ደህና መጡ!");
-
-      const user = await env.DB.prepare("SELECT phone FROM users WHERE user_id = ?").bind(userId).first();
-
-      if (user && user.phone) {
-        const successMsg = `
+      // ✅ አባል ከሆነ - ደስ የሚል አኒሜሽን እና መልዕክት
+      await ctx.answerCbQuery("🎉 እንኳን ደህና መጡ! በትክክል ተቀላቅለዋል።", { show_alert: false });
+      
+      const successMsg = `
 ✨ <b>እንኳን ደስ አለዎት!</b> ✨
 ━━━━━━━━━━━━━━━━━━
 አሁን የ <b>SmartX Lottery</b> ሙሉ አባል ነዎት።
@@ -619,25 +560,17 @@ bot.action('check_join', async (ctx) => {
 ዕድልዎን ይሞክሩ፣ በሚሊዮኖች የሚቆጠሩ ሽልማቶችን ያሸንፉ! 🏆
 ━━━━━━━━━━━━━━━━━━`;
 
-        return ctx.editMessageText(successMsg, {
-          parse_mode: 'HTML',
-          ...mainKeyboard
-        });
-      } else {
-        await ctx.deleteMessage();
-        const welcomeMsg = `
-✨ <b>እንኳን ደስ አለዎት! ቻናሉን በትክክል ተቀላቅለዋል።</b> ✨
-━━━━━━━━━━━━━━━━━━
-ምዝገባውን ለመጨረስ እባክዎ ከታች ያለውን አዝራር በመጫን <b>ስልክ ቁጥርዎን ያጋሩ</b>።
-━━━━━━━━━━━━━━━━━━`;
-
-        return ctx.reply(welcomeMsg, {
-          parse_mode: 'HTML',
-          ...requestPhoneKeyboard
-        });
-      }
+      // ዋናውን ሜኑ አሳይ
+      return ctx.editMessageText(successMsg, {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([
+          [Markup.button.callback('🎟 ቲኬት ቁረጥ', 'buy_ticket_menu')],
+          [Markup.button.callback('💰 Wallet', 'view_wallet')]
+        ])
+      });
 
     } else {
+      // ❌ አባል ካልሆነ - ማስጠንቀቂያ
       return ctx.answerCbQuery("⚠️ እባክዎ መጀመሪያ ቻናሉን ይቀላቀሉ!", { show_alert: true });
     }
 
@@ -646,7 +579,6 @@ bot.action('check_join', async (ctx) => {
     return ctx.reply("ስህተት ተከስቷል፣ እባክዎ ትንሽ ቆይተው ይሞክሩ።");
   }
 });
-    
 
 // 2. ተጠቃሚው ገና ሲመጣ የሚላክ ማራኪ ጥሪ (Start ላይ ወይም በየመሃሉ የሚላክ)
 const forceJoinKeyboard = Markup.inlineKeyboard([
@@ -659,7 +591,29 @@ bot.action('request_withdraw', async (ctx) => {
   await ctx.answerCbQuery();
   return ctx.reply("📩 <b>Withdrawal Request</b>\nPlease contact @AdminUsername with your registered phone and the amount you wish to withdraw.", { parse_mode: 'HTML' });
 });
+                              
+  bot.action('check_join', async (ctx) => {
+  const channelId = "@SmartX_Ethio"; // የቻናልህ Username (@ ምልክት እንዳይረሳ)
+  const userId = ctx.from.id;
 
+  try {
+    const member = await ctx.telegram.getChatMember(channelId, userId);
+    
+    // መቀላቀሉን ማረጋገጫ (status 'member', 'administrator', ወይም 'creator' ከሆነ)
+    if (['member', 'administrator', 'creator'].includes(member.status)) {
+      await ctx.answerCbQuery("Thank you for joining! 🎉");
+      await ctx.deleteMessage(); // የ join መልዕክቱን ለማጥፋት
+      return ctx.reply(
+        "<b>Verification Complete! 🔓</b>\nYou now have full access to the bot.",
+        { parse_mode: 'HTML', ...mainKeyboard }
+      );
+    } else {
+      await ctx.answerCbQuery("❌ You haven't joined the channel yet!", { show_alert: true });
+    }
+  } catch (e) {
+    await ctx.answerCbQuery("Error verifying membership. Make sure the bot is Admin in the channel.", { show_alert: true });
+  }
+});
 
   bot.action('view_invite_link', async (ctx) => {
   const userId = ctx.from.id;
