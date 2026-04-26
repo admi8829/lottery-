@@ -447,65 +447,54 @@ bot.action('back_to_settings', async (ctx) => {
   }
 });
     
-// 🎟 My Tickets አዝራር ሲጫን ቀጥታ ዝርዝሩን እንዲያሳይ
 bot.hears('🎟 My Tickets', async (ctx) => {
   const userId = ctx.from.id;
   try {
-    // 1. ሁሉንም የዚህን ሰው ቲኬቶች ከዳታቤዝ ማምጣት
-    const tickets = await env.DB.prepare("SELECT ticket_number, status, purchase_date FROM tickets WHERE user_id = ? ORDER BY purchase_date DESC")
-      .bind(userId)
-      .all();
+    const tickets = await env.DB.prepare("SELECT ticket_number, status FROM tickets WHERE user_id = ? ORDER BY purchase_date DESC")
+      .bind(userId).all();
 
-    // ቲኬት ከሌለው
     if (!tickets.results || tickets.results.length === 0) {
-      return ctx.reply("<b>📂 My Tickets</b>\n━━━━━━━━━━━━━━━━━━\n<i>You haven't purchased any tickets yet.</i>", { 
+      return ctx.reply("<b>📂 My Tickets</b>\n━━━━━━━━━━━━━━━━━━\n<i>You have no tickets yet.</i>", { 
         parse_mode: 'HTML',
-        ...Markup.inlineKeyboard([[Markup.button.callback('🎟 Buy New Ticket', 'buy_with_wallet')]])
+        ...Markup.inlineKeyboard([[Markup.button.callback('🎟 Buy Now', 'buy_with_wallet')]])
       });
     }
 
-    // 2. ቲኬቶችን በሁለት መለየት (Active vs Drawn/Expired)
-    let activeTickets = "";
-    let expiredTickets = "";
-    let activeCount = 0;
-    let expiredCount = 0;
+    let activeList = [];
+    let pastList = [];
 
-    tickets.results.forEach((t) => {
-      const dateStr = new Date(t.purchase_date).toLocaleDateString();
-      if (t.status === 'active') {
-        activeCount++;
-        activeTickets += `🟢 <code>#${t.ticket_number}</code> - <pre>${dateStr}</pre>\n`;
-      } else {
-        expiredCount++;
-        expiredTickets += `🔴 <code>#${t.ticket_number}</code> - <pre>${dateStr}</pre>\n`;
-      }
+    tickets.results.forEach(t => {
+      const formatted = `<code>#${t.ticket_number}</code>`;
+      if (t.status === 'active') activeList.push(formatted);
+      else pastList.push(formatted);
     });
 
-    // 3. የመልዕክቱ አቀራረብ
-    let finalMsg = `<b>📂 TICKET HISTORY</b>\n━━━━━━━━━━━━━━━━━━\n\n`;
+    // መልዕክቱን በአጭሩ ማቀናጀት (ጎን ለጎን)
+    let msg = `<b>📂 YOUR TICKETS</b>\n━━━━━━━━━━━━━━━━━━\n`;
     
-    finalMsg += `<b>🎫 Active Entries (${activeCount})</b>\n`;
-    finalMsg += activeCount > 0 ? activeTickets : "<i>No active tickets</i>\n";
+    if (activeList.length > 0) {
+      msg += `<b>🟢 ACTIVE (${activeList.length}):</b>\n${activeList.join('  |  ')}\n\n`;
+    }
     
-    finalMsg += `\n<b>⌛ Past Entries (${expiredCount})</b>\n`;
-    finalMsg += expiredCount > 0 ? expiredTickets : "<i>No past history</i>\n";
-    
-    finalMsg += `\n━━━━━━━━━━━━━━━━━━\n<i>Green (🟢) means currently in the draw.</i>`;
+    if (pastList.length > 0) {
+      msg += `<b>🔴 PAST (${pastList.length}):</b>\n${pastList.join('  |  ')}\n`;
+    }
 
-    return ctx.reply(finalMsg, { 
+    msg += `━━━━━━━━━━━━━━━━━━`;
+
+    return ctx.reply(msg, { 
       parse_mode: 'HTML',
       ...Markup.inlineKeyboard([
         [Markup.button.callback('🎟 Buy New', 'buy_with_wallet')],
-        [Markup.button.callback('🔙 Back', 'back_to_settings')]
+        [Markup.button.callback('🔙 Main Menu', 'back_to_settings')]
       ])
     });
 
   } catch (e) {
-    console.error("My Tickets Error:", e);
-    return ctx.reply("⚠️ Error fetching your tickets.");
+    return ctx.reply("⚠️ Error loading tickets.");
   }
 });
-          
+    
      
   bot.hears('👥 Invite & Earn', async (ctx) => {
   const userId = ctx.from.id;
