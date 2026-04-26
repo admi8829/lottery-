@@ -27,11 +27,24 @@ export default {
         const startPayload = ctx.startPayload;
         
         const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
+        if (user && user.phone) {
+          const welcomeBackMsg = `
+✨ <b>WELCOME BACK!</b> ✨
+━━━━━━━━━━━━━━━━━━
+Hello <b>${user.name}</b>, it's great to see you again! 
 
-    If (user && user.phone) {
-          return ctx.reply(`<b>Welcome message back, ${user.name}!</b> 👋`, { parse_mode: 'HTML', ...mainKeyboard });
-        } 
+💰 <b>Current Balance:</b> <code>${user.balance || 0} ETB</code>
+🎟 <b>Your Invites:</b> <code>${user.invite_count || 0} users</code>
 
+Ready to try your luck today? Select an option below to get started.
+━━━━━━━━━━━━━━━━━━`;
+
+          return ctx.reply(welcomeBackMsg, { 
+            parse_mode: 'HTML', 
+            ...mainKeyboard 
+          });
+        }
+        
         let referrerId = null;
         if (startPayload && startPayload.startsWith('ref_')) {
           const ref = parseInt(startPayload.replace('ref_', ''));
