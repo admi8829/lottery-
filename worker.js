@@ -10,12 +10,15 @@ export default {
     const ADMIN_GROUP_ID = -1003879708444
     
     // --- 1. Keyboards ---
-    const mainKeyboard = Markup.keyboard([
-      ['🎟 New Ticket'],
-      ['🎟 My Tickets', '⚙️ Settings'],
-      ['🏆 Winners', '💰 Wallet & Invite'],
-      ['👥 Invite & Earn', '❓ Help']
-    ]).resize();
+const mainKeyboard = Markup.keyboard([
+  ['🎟 New Ticket'],
+  ['🎟 My Tickets', '⚙️ Settings'],
+  ['🏆 Winners', '💰 Wallet & Invite'],
+  ['👥 Invite & Earn', '❓ Help'],
+  ['🛡 Privacy', '👨‍✈️ Admin'],
+  ['👨‍💻 Contact Developer'] // ይህ አዝራር ብቻውን ስለሆነ በስልኩ ስፋት ልክ ረጅም ይሆናል
+]).resize();
+    
 
     const requestPhoneKeyboard = Markup.keyboard([
       [Markup.button.contactRequest('📲 send to phone ')]
