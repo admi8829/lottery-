@@ -381,7 +381,45 @@ Your ticket has been successfully issued. You are now officially in the draw!
     return ctx.answerCbQuery("🚨 System Busy. Please try again.", { show_alert: true });
   }
 });
-      
+
+bot.action('show_deposit_info', async (ctx) => {
+  try {
+    await ctx.answerCbQuery();
+    
+    const depositText = `
+<b>💳 DEPOSIT METHODS</b>
+━━━━━━━━━━━━━━━━━━
+Choose your preferred method to add balance to your wallet.
+
+📱 <b>Mobile Money:</b>
+• <b>Telebirr:</b> <code>0911223344</code> (Name)
+• <b>CBE Birr:</b>  <code>0911223344</code> (Name)
+
+🏦 <b>Bank Transfer:</b>
+• <b>CBE Bank:</b> <code>100012345678</code> (Name)
+
+⚠️ <b>IMPORTANT STEPS:</b>
+━━━━━━━━━━━━━━━━━━
+1️⃣ Transfer the amount (Min: <b>10 ETB</b>).
+2️⃣ Take a clear <b>Screenshot</b> of the receipt.
+3️⃣ Click the button below to <b>Upload</b> your receipt.
+
+<i>Our team will verify and add the balance within 5-30 minutes.</i>`;
+  
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('📸 Upload Screenshot', 'ask_for_photo')],
+      [Markup.button.callback('🔙 Back to Wallet', 'back_to_wallet')]
+    ]);
+
+    return ctx.editMessageText(depositText, { 
+      parse_mode: 'HTML', 
+      ...keyboard 
+    });
+  } catch (e) {
+    console.error("Deposit Info Error:", e);
+  }
+});
+    
     
   bot.hears('👥 Invite & Earn', async (ctx) => {
   const userId = ctx.from.id;
@@ -544,32 +582,8 @@ bot.hears('🎟 My Tickets', async (ctx) => {
 });
       
 
-// 3. Deposit Info (editMessageText ተጠቀምንበት)
-// --- Deposit መመሪያ ማሳያ ---
-bot.action('show_deposit_info', async (ctx) => {
-  await ctx.answerCbQuery();
-  const depositText = `
-<b>📥 Deposit Funds</b>
-━━━━━━━━━━━━━━━━━━
-To add balance to your wallet, please use one of the payment methods below:
 
-🔸 <b>Telebirr:</b> <code>0911223344</code>
-🔸 <b>CBE Birr:</b> <code>0911223344</code>
-🔸 <b>CBE Bank:</b> <code>100012345678</code>
 
-<b>⚠️ Instructions:</b>
-1. Transfer the amount you wish to deposit.
-2. Take a <b>Screenshot</b> of the successful transaction.
-3. Click the <b>"📸 Send Screenshot"</b> button below and upload the photo.
-━━━━━━━━━━━━━━━━━━`;
-  
-  const keyboard = Markup.inlineKeyboard([
-    [Markup.button.callback('📸 Send Screenshot', 'ask_for_photo')],
-    [Markup.button.callback('🔙 Back to Wallet', 'back_to_wallet')]
-  ]);
-
-  return ctx.editMessageText(depositText, { parse_mode: 'HTML', ...keyboard });
-});
 
 // ፎቶ እንዲልኩ መጠየቂያ
 bot.action('ask_for_photo', async (ctx) => {
