@@ -18,9 +18,7 @@ const mainKeyboard = Markup.keyboard([
   ['👨‍✈️ Admin', '👨‍💻 Contact Developer'] // አድሚን እና ዴቨሎፐርን ጎን ለጎን
 ]).resize();
     
-    
-
-    const requestPhoneKeyboard = Markup.keyboard([
+     const requestPhoneKeyboard = Markup.keyboard([
       [Markup.button.contactRequest('📲 send to phone ')]
     ]).resize();
 
