@@ -656,6 +656,44 @@ Welcome to the help section! Here is everything you need to know about using the
 bot.action('contact_support', (ctx) => {
   return ctx.reply("<b>📩 Support Inquiry</b>\nPlease send your message directly to @AdminUsername. Make sure to include your User ID if it's a payment issue.", { parse_mode: 'HTML' });
 });
+
+    
+  bot.hears('👨‍💻 Developer', async (ctx) => {
+  const devMessage = `
+<b>🚀 NEED A CUSTOM DIGITAL SOLUTION?</b>
+━━━━━━━━━━━━━━━━━━
+Hi! I am a <b>Full-Stack Developer</b> specialized in building high-performance digital products tailored to your needs.
+
+<b>🛠 What I Can Build For You:</b>
+• 🤖 <b>Telegram Bots:</b> Advanced bots with payment systems, database integration (like this one!), and AI.
+• 🌐 <b>Websites:</b> Professional, responsive, and SEO-optimized web applications for business or personal use.
+• 📱 <b>Mobile Apps:</b> User-friendly Android and iOS applications with modern features.
+
+<b>💡 Why Choose My Services?</b>
+✅ Secure and Scalable Code
+✅ Modern and Clean UI/UX Design
+✅ Fast Delivery & Ongoing Support
+✅ Affordable Pricing for Quality Work
+
+━━━━━━━━━━━━━━━━━━
+<b>📩 LET'S WORK TOGETHER!</b>
+Ready to turn your idea into reality? Contact me directly:
+
+👤 <b>Telegram:</b> @YourUsername
+📢 <b>Portfolio:</b> @YourChannel
+━━━━━━━━━━━━━━━━━━
+<i>"Transforming ideas into powerful digital experiences."</i>`;
+
+  const devKeyboard = Markup.inlineKeyboard([
+    [Markup.button.url('✉️ Send Message', 'https://t.me/YourUsername')],
+    [Markup.button.callback('🔙 Back to Menu', 'back_to_settings')]
+  ]);
+
+  return ctx.reply(devMessage, { 
+    parse_mode: 'HTML', 
+    ...devKeyboard 
+  });
+});
     
      
   bot.hears('👥 Invite & Earn', async (ctx) => {
