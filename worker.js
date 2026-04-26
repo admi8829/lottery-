@@ -20,42 +20,63 @@ export default {
     ]).resize();
 
     // --- 2. Start Command ---
-    bot.start(async (ctx) => {
-      try {
-        const userId = ctx.from.id;
-        const startPayload = ctx.startPayload;
-        
-        const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
+bot.start(async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    const startPayload = ctx.startPayload;
+    const CHANNEL_ID = "@SmartX_Ethio";
 
-        if (user && user.phone) {
-          return ctx.reply(`<b>Welcome back, ${user.name}!</b> 👋`, { parse_mode: 'HTML', ...mainKeyboard });
-        }
+    const member = await ctx.telegram.getChatMember(CHANNEL_ID, userId).catch(() => ({ status: 'left' }));
+    const isMember = ['member', 'administrator', 'creator'].includes(member.status);
 
-        let referrerId = null;
-        if (startPayload && startPayload.startsWith('ref_')) {
-          const ref = parseInt(startPayload.replace('ref_', ''));
-          if (ref !== userId) referrerId = ref;
-        }
+    const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
 
-        await env.DB.prepare(
-          "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, ?, ?)"
-        ).bind(userId, ctx.from.first_name, referrerId, 0, 0).run();
+    if (!isMember) {
+      const forceJoinKeyboard = Markup.inlineKeyboard([
+        [Markup.button.url('📢 Join Our Channel', `https://t.me/${CHANNEL_ID.replace('@', '')}`)],
+        [Markup.button.callback('✅ I have Joined', 'check_join')]
+      ]);
 
-        const welcomeMsg = `
+      return ctx.reply(`<b>⚠️ Access Denied!</b>\n\nYou must join our channel to use this bot.`, {
+        parse_mode: 'HTML',
+        ...forceJoinKeyboard
+      });
+    }
+
+    if (user && user.phone) {
+      return ctx.reply(`<b>Welcome back, ${user.name}!</b> 👋`, {
+        parse_mode: 'HTML',
+        ...mainKeyboard
+      });
+    }
+
+    let referrerId = null;
+    if (startPayload && startPayload.startsWith('ref_')) {
+      const ref = parseInt(startPayload.replace('ref_', ''));
+      if (ref !== userId) referrerId = ref;
+    }
+
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, ?, ?)"
+    ).bind(userId, ctx.from.first_name, referrerId, 0, 0).run();
+
+    const welcomeMsg = `
 ✨ <b>Welcome to SmartX Lottery!</b> ✨
 ━━━━━━━━━━━━━━━━━━
 To start winning amazing prizes, please complete your registration.
 
-<b>1. Join our channel:</b> ${CHANNEL_ID}
-<b>2. Share your phone number</b> using the button below.
+<b>Share your phone number</b> using the button below to verify your account.
 ━━━━━━━━━━━━━━━━━━`;
 
-        return ctx.reply(welcomeMsg, { parse_mode: 'HTML', ...requestPhoneKeyboard });
-      } catch (e) {
-        return ctx.reply("Error: " + e.message);
-      }
+    return ctx.reply(welcomeMsg, {
+      parse_mode: 'HTML',
+      ...requestPhoneKeyboard
     });
-    
+  } catch (e) {
+    return ctx.reply("Error: " + e.message);
+  }
+});
+                           
     // --- 3. Phone Verification & Draw Info Display ---
     bot.on('contact', async (ctx) => {
       try {
