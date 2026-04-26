@@ -57,18 +57,32 @@ bot.start(async (ctx) => {
     }
 
     await env.DB.prepare(
-      "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, ?, ?)"
-    ).bind(userId, ctx.from.first_name, referrerId, 0, 0).run();
+  "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count, language) VALUES (?, ?, ?, ?, ?, ?)"
+).bind(userId, ctx.from.first_name, referrerId, 0, 0, 'en').run();
 
-    const welcomeMsg = `
-✨ <b>Welcome to SmartX Lottery!</b> ✨
+      const userId = ctx.from.id;
+    
+    // የተጠቃሚውን ቋንቋ ከዳታቤዝ ማግኘት
+    const user = await env.DB.prepare("SELECT language FROM users WHERE user_id = ?").bind(userId).first();
+    const lang = user ? user.language : 'en';
+
+    // የሁለቱም ቋንቋዎች መልዕክት
+    const texts = {
+      en: `✨ <b>Welcome to SmartX Lottery!</b> ✨
 ━━━━━━━━━━━━━━━━━━
 To start winning amazing prizes, please complete your registration.
 
 <b>Share your phone number</b> using the button below to verify your account.
-━━━━━━━━━━━━━━━━━━`;
+━━━━━━━━━━━━━━━━━━`,
+      am: `✨ <b>ወደ SmartX Lottery እንኳን ደህና መጡ!</b> ✨
+━━━━━━━━━━━━━━━━━━
+ታላላቅ ሽልማቶችን ማሸነፍ ለመጀመር፣ እባክዎ ምዝገባዎን ያጠናቅቁ።
 
-    return ctx.reply(welcomeMsg, {
+መለያዎን ለማረጋገጥ ከታች ያለውን አዝራር በመጫን <b>ስልክ ቁጥርዎን ያጋሩ</b>።
+━━━━━━━━━━━━━━━━━━`
+    };
+
+    return ctx.reply(texts[lang], {
       parse_mode: 'HTML',
       ...requestPhoneKeyboard
     });
@@ -76,6 +90,8 @@ To start winning amazing prizes, please complete your registration.
     return ctx.reply("Error: " + e.message);
   }
 });
+  
+    
                            
     // --- 3. Phone Verification & Draw Info Display ---
     bot.on('contact', async (ctx) => {
@@ -350,6 +366,32 @@ Your Link: <code>${inviteLink}</code>`;
   }
 });
 
+    // ቋንቋ እንዲመርጥ መጠየቅ
+bot.hears('🌐 Language', async (ctx) => {
+  const languageKeyboard = Markup.inlineKeyboard([
+    [Markup.button.callback('አማርኛ 🇪🇹', 'set_lang_am'), Markup.button.callback('English 🇺🇸', 'set_lang_en')]
+  ]);
+  
+  return ctx.reply("<b>Choose your language / ቋንቋዎን ይምረጡ:</b>", {
+    parse_mode: 'HTML',
+    ...languageKeyboard
+  });
+});
+
+// ወደ አማርኛ መቀየር
+bot.action('set_lang_am', async (ctx) => {
+  await env.DB.prepare("UPDATE users SET language = ? WHERE user_id = ?").bind('am', ctx.from.id).run();
+  await ctx.answerCbQuery("ቋንቋ ወደ አማርኛ ተቀይሯል!");
+  return ctx.editMessageText("✅ ቋንቋዎ ወደ <b>አማርኛ</b> ተቀይሯል።", { parse_mode: 'HTML' });
+});
+
+// ወደ እንግሊዝኛ መቀየር
+bot.action('set_lang_en', async (ctx) => {
+  await env.DB.prepare("UPDATE users SET language = ? WHERE user_id = ?").bind('en', ctx.from.id).run();
+  await ctx.answerCbQuery("Language set to English!");
+  return ctx.editMessageText("✅ Your language has been set to <b>English</b>.", { parse_mode: 'HTML' });
+});
+  
 
 // 2. Buy Ticket (በዳታቤዝ የሚመዘግብ)
 bot.action('buy_with_wallet', async (ctx) => {
