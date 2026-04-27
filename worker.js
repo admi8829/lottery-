@@ -832,30 +832,27 @@ Share your referral link with friends and family. For every person who joins and
   });
 });
     
-
+// 1. የሴቲንግ ሜኑ ማሳያ
 bot.hears('⚙️ Settings', async (ctx) => {
   const userId = ctx.from.id;
 
   try {
-    // የተጠቃሚውን መረጃ ከዳታቤዝ እናምጣ (ለምሳሌ ስም እና ስልክ)
-    const user = await env.DB.prepare("SELECT first_name, phone FROM users WHERE user_id = ?").bind(userId).first();
-    const phoneStatus = user?.phone ? "✅ Verified" : "⚠️ Not Linked";
+    const user = await env.DB.prepare("SELECT phone FROM users WHERE user_id = ?").bind(userId).first();
+    const phoneStatus = user?.phone ? `🟢 ${user.phone}` : "🔴 Not Linked";
 
     const settingsText = `
 <b>⚙️ SETTINGS & PROFILE</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>Account Holder:</b> ${ctx.from.first_name}
+👤 <b>Name:</b> ${ctx.from.first_name}
 🆔 <b>User ID:</b> <code>${userId}</code>
-📞 <b>Phone Status:</b> ${phoneStatus}
-🌐 <b>Language:</b> English (US)
+📞 <b>Phone:</b> ${phoneStatus}
 ━━━━━━━━━━━━━━━━━━
-<i>Security Tip: Never share your User ID or payment screenshots with anyone except the official admin.</i>`;
+<i>Please keep your information up to date to ensure smooth prize payouts.</i>`;
 
     const settingsKeyboard = Markup.inlineKeyboard([
-      [Markup.button.callback('👤 Update Profile Info', 'update_profile')],
+      [Markup.button.callback('📲 Update Phone Number', 'update_profile')],
       [Markup.button.callback('🛠 Contact Support', 'contact_support')],
-      [Markup.button.callback('🗑 Delete Account', 'confirm_delete')],
-      [Markup.button.callback('🔙 Back to Menu', 'back_to_main')]
+      [Markup.button.callback('🗑 Delete Account', 'confirm_delete')]
     ]);
 
     return ctx.reply(settingsText, {
@@ -868,18 +865,37 @@ bot.hears('⚙️ Settings', async (ctx) => {
   }
 });
 
-// --- Security Check for Deletion ---
-bot.action('confirm_delete', async (ctx) => {
-  const deleteWarning = `
-<b>⚠️ WARNING: ACCOUNT DELETION</b>
+// 2. ስልክ ቁጥር ለማደስ (Update Profile)
+bot.action('update_profile', async (ctx) => {
+  await ctx.answerCbQuery();
+  const updateMessage = `
+<b>📲 Update Your Phone Number</b>
 ━━━━━━━━━━━━━━━━━━
-This action is <b>permanent</b> and cannot be undone!
+To receive your winnings and keep your account secure, please share your current phone number.
 
-• Your balance will be lost.
-• Your referral history will be wiped.
-• You will lose access to active tickets.
+<b>Note:</b> Click the button at the bottom of your screen.`;
 
-<b>Are you absolutely sure?</b>`;
+  return ctx.reply(updateMessage, {
+    parse_mode: 'HTML',
+    ...Markup.keyboard([
+      [Markup.button.contactRequest('📲 Share My Phone Number')]
+    ]).resize().oneTime()
+  });
+});
+
+// 3. አካውንት ለመሰረዝ መጀመሪያ የሚመጣ ማስጠንቀቂያ (Step 1)
+bot.action('confirm_delete', async (ctx) => {
+  await ctx.answerCbQuery();
+  const deleteWarning = `
+<b>⚠️ PERMANENT DELETION</b>
+━━━━━━━━━━━━━━━━━━
+Are you sure you want to delete your account? 
+This will:
+• Wipe your balance
+• Delete your ticket history
+• Remove your referral link
+
+<b>This action cannot be undone!</b>`;
 
   const deleteKeyboard = Markup.inlineKeyboard([
     [Markup.button.callback('🔥 Yes, Delete Permanently', 'final_delete_account')],
@@ -891,7 +907,20 @@ This action is <b>permanent</b> and cannot be undone!
     ...deleteKeyboard
   });
 });
+
+// 4. አካውንቱን ከዳታቤዝ የሚሰርዝ (Step 2)
+bot.action('final_delete_account', async (ctx) => {
+  const userId = ctx.from.id;
+  try {
+    await env.DB.prepare("DELETE FROM users WHERE user_id = ?").bind(userId).run();
+    await ctx.answerCbQuery("Account Deleted.");
+    return ctx.editMessageText("<b>❌ Your account has been permanently deleted.</b>\nSend /start to register again.", { parse_mode: 'HTML' });
+  } catch (e) {
+    return ctx.reply("Error: " + e.message);
+  }
+});
     
+
 // 1. Wallet & Invite (አድስ የሚል አዝራር ተጨምሮበታል)
 bot.hears('💰 Wallet & Invite', async (ctx) => {
   try {
@@ -1070,34 +1099,6 @@ bot.action('request_withdraw', async (ctx) => {
   return ctx.reply(`<b>🔗 Your Invite Link:</b>\n<code>${inviteLink}</code>\n\nShare this and get 2 ETB for every join!`, { parse_mode: 'HTML' });
 });
     
- /*bot.action('update_profile', (ctx) => {
-  const updateMessage = `
-<b>👤 Update Your Profile</b>
-━━━━━━━━━━━━━━━━━━
-To keep your account secure and ensure you receive your winnings, we need to verify your phone number again.
-
-<b>Instructions:</b>
-Click the button below to share your contact.
-━━━━━━━━━━━━━━━━━━`;
-
-  return ctx.reply(updateMessage, {
-    parse_mode: 'HTML',
-    ...Markup.keyboard([
-      [Markup.button.contactRequest('📲 Verify & Update My Number')]
-    ]).resize().oneTime()
-  });
-});*/
-    
-    //delete my information. 
-/* bot.action('confirm_delete', (ctx) => {
-  return ctx.editMessageText("<b>⚠️ Are you sure?</b>\nThis will permanently delete your registration and wallet data.", {
-    parse_mode: 'HTML',
-    ...Markup.inlineKeyboard([
-      [Markup.button.callback('Yes, Delete everything', 'do_delete')],
-      [Markup.button.callback('No, Cancel', 'back_to_settings')]
-    ])
-  });
-});*/
 
     // ማጽደቂያ (Approval)
 bot.action(/^approve_(\d+)_(\d+)$/, async (ctx) => {
@@ -1133,11 +1134,7 @@ bot.action(/^reject_(\d+)$/, async (ctx) => {
 });
     
 
-/*bot.action('do_delete', async (ctx) => {
-  await env.DB.prepare("DELETE FROM users WHERE user_id = ?").bind(ctx.from.id).run();
-  await ctx.answerCbQuery("Account Deleted");
-  return ctx.editMessageText("Your account has been deleted. Send /start to register again.");
-});*/
+    
 
 // 1. የክፍያ አማራጮችን ማሳያ
 bot.action('show_payments', (ctx) => {
