@@ -834,28 +834,64 @@ Share your referral link with friends and family. For every person who joins and
     
 
 bot.hears('⚙️ Settings', async (ctx) => {
-  const settingsKeyboard = Markup.inlineKeyboard([
-    [Markup.button.callback('👤 Update Profile', 'update_profile')],
-    [Markup.button.callback('💳 Payment Methods', 'show_payments')],
-    [Markup.button.callback('👨‍💻 Contact Support', 'contact_support')],
-    [Markup.button.callback('❌ Delete My Account', 'confirm_delete')]
-  ]);
+  const userId = ctx.from.id;
 
-  const settingsText = `
-<b>⚙️ Settings Menu</b>
+  try {
+    // የተጠቃሚውን መረጃ ከዳታቤዝ እናምጣ (ለምሳሌ ስም እና ስልክ)
+    const user = await env.DB.prepare("SELECT first_name, phone FROM users WHERE user_id = ?").bind(userId).first();
+    const phoneStatus = user?.phone ? "✅ Verified" : "⚠️ Not Linked";
 
-Manage your account details and payment methods below.
+    const settingsText = `
+<b>⚙️ SETTINGS & PROFILE</b>
 ━━━━━━━━━━━━━━━━━━
-<b>Status:</b> 🟢 Active
-<b>Language:</b> English
-━━━━━━━━━━━━━━━━━━`;
+👤 <b>Account Holder:</b> ${ctx.from.first_name}
+🆔 <b>User ID:</b> <code>${userId}</code>
+📞 <b>Phone Status:</b> ${phoneStatus}
+🌐 <b>Language:</b> English (US)
+━━━━━━━━━━━━━━━━━━
+<i>Security Tip: Never share your User ID or payment screenshots with anyone except the official admin.</i>`;
 
-  return ctx.reply(settingsText, {
-    parse_mode: 'HTML',
-    ...settingsKeyboard
-  });
+    const settingsKeyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('👤 Update Profile Info', 'update_profile')],
+      [Markup.button.callback('🛠 Contact Support', 'contact_support')],
+      [Markup.button.callback('🗑 Delete Account', 'confirm_delete')],
+      [Markup.button.callback('🔙 Back to Menu', 'back_to_main')]
+    ]);
+
+    return ctx.reply(settingsText, {
+      parse_mode: 'HTML',
+      ...settingsKeyboard
+    });
+  } catch (e) {
+    console.error("Settings Error:", e);
+    return ctx.reply("❌ Error loading settings. Please try again later.");
+  }
 });
 
+// --- Security Check for Deletion ---
+bot.action('confirm_delete', async (ctx) => {
+  const deleteWarning = `
+<b>⚠️ WARNING: ACCOUNT DELETION</b>
+━━━━━━━━━━━━━━━━━━
+This action is <b>permanent</b> and cannot be undone!
+
+• Your balance will be lost.
+• Your referral history will be wiped.
+• You will lose access to active tickets.
+
+<b>Are you absolutely sure?</b>`;
+
+  const deleteKeyboard = Markup.inlineKeyboard([
+    [Markup.button.callback('🔥 Yes, Delete Permanently', 'final_delete_account')],
+    [Markup.button.callback('✅ No, Keep My Account', 'back_to_settings')]
+  ]);
+
+  return ctx.editMessageText(deleteWarning, {
+    parse_mode: 'HTML',
+    ...deleteKeyboard
+  });
+});
+    
 // 1. Wallet & Invite (አድስ የሚል አዝራር ተጨምሮበታል)
 bot.hears('💰 Wallet & Invite', async (ctx) => {
   try {
