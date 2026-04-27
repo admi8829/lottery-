@@ -952,9 +952,17 @@ bot.action('view_my_tickets', async (ctx) => {
 
     // ፎቶ እንዲልኩ መጠየቂያ
 bot.action('ask_for_photo', async (ctx) => {
+  const userId = ctx.from.id;
+  
+  // ተጠቃሚው ፎቶ እንዲልክ እየጠበቅን መሆኑን ምልክት እናስቀምጥ
+  await env.DB.prepare("UPDATE users SET deposit_method = 'WAITING_FOR_PHOTO' WHERE user_id = ?")
+    .bind(userId)
+    .run();
+
   await ctx.answerCbQuery();
   return ctx.reply("<b>📸 Please upload your Screenshot now:</b>\nMake sure the transaction reference number is visible.", { parse_mode: 'HTML' });
 });
+    
 
 // --- ፎቶ ሲላክ ለአድሚን የሚሄድበት ሲስተም ---
 bot.on('photo', async (ctx) => {
