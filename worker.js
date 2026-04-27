@@ -1169,11 +1169,10 @@ bot.on('text', async (ctx) => {
   const userId = ctx.from.id;
   const chatType = ctx.chat.type;
 
-  // 1. ቦቱ በግሩፕ ውስጥ የሚፃፉትን መልዕክቶች እንዳያነብ መከልከል
-  // "private" ካልሆነ (ማለትም group ወይም supergroup ከሆነ) ምንም ምላሽ አይሰጥም
+  // 1. ቦቱ በግሩፕ ውስጥ የሚፃፉትን መልዕክቶች እንዳያነብ (Security)
   if (chatType !== 'private') return;
 
-  // 2. ለአድሚኑ ብቻ የሚሰራ (ብር ለመጨመር)
+  // 2. ለአድሚኑ ብቻ፡ በእጅ ብር ለመጨመር (add [userId] [amount])
   if (userId === ADMIN_ID && text.startsWith('add ')) {
     const parts = text.split(' '); 
     if (parts.length === 3) {
@@ -1190,21 +1189,17 @@ bot.on('text', async (ctx) => {
     }
   }
 
-  // 3. ተጠቃሚው መረጃ ለመመዝገብ ሲሞክር ብቻ እንዲቀበል
-  // ተጠቃሚው የግድ ሰረዝ (-) ምልክት ካላካተተ ቦቱ መልዕክቱን ችላ ይለዋል
+  // 3. ለተጠቃሚዎች፡ የሽልማት መቀበያ አካውንት (Payout) ለመመዝገብ ብቻ
+  // ተጠቃሚው ሰረዝ (-) ካላካተተ ቦቱ መልዕክቱን ችላ ይለዋል
   if (text.includes('-')) {
-     if (text.toLowerCase().includes('telebirr') || text.toLowerCase().includes('cbe birr')) {
-        await env.DB.prepare("UPDATE users SET deposit_method = ? WHERE user_id = ?").bind(text, userId).run();
-        return ctx.reply("✅ <b>Deposit method saved!</b> You can now use this to buy tickets.", { parse_mode: 'HTML' });
-     } else {
-        // ማንኛውም ሰረዝ ያለበት ሌላ ጽሁፍ እንደ Payout Account ይቆጠራል
-        await env.DB.prepare("UPDATE users SET payout_account = ? WHERE user_id = ?").bind(text, userId).run();
-        return ctx.reply("✅ <b>Payout account saved!</b> Your winnings will be sent here.", { parse_mode: 'HTML' });
-     }
+      // ማንኛውም ሰረዝ ያለበት ጽሁፍ እንደ Payout Account ይቆጠራል
+      await env.DB.prepare("UPDATE users SET payout_account = ? WHERE user_id = ?").bind(text, userId).run();
+      return ctx.reply("✅ <b>Payout account saved!</b> Your winnings will be sent here.", { parse_mode: 'HTML' });
   }
 
-  // ተጠቃሚው ዝም ብሎ ሰረዝ የሌለበት ጽሁፍ (ለምሳሌ "ሰላም") ቢልክ ቦቱ ምንም ምላሽ አይሰጥም (ዝም ይላል)
+  // ሌላ ማንኛውም ጽሁፍ ቢመጣ ቦቱ ዝም ይላል (ምንም አይመልስም)
 });
+    
                                        
 
     // የዌብሁክ ሎጂክ
