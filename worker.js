@@ -695,55 +695,69 @@ Ready to turn your idea into reality? Contact me directly:
   });
 });
 
-    bot.hears('👨‍✈️ Admin', async (ctx) => {
+bot.hears('👨‍✈️ Admin', async (ctx) => {
   const userId = ctx.from.id;
-  const ADMIN_ID = 8344169004; // ያንተ ትክክለኛ ID
 
-  // የአድሚን ፍቃድ ማረጋገጫ
-  if (userId !== ADMIN_ID) {
-    return ctx.reply("⚠️ <b>Access Denied!</b>\nThis area is restricted to the system administrator only.", { parse_mode: 'HTML' });
-  }
-
-  try {
-    // አጠቃላይ መረጃዎችን ከዳታቤዝ ማምጣት
-    const userCount = await env.DB.prepare("SELECT COUNT(*) as total FROM users").first();
-    const ticketCount = await env.DB.prepare("SELECT COUNT(*) as total FROM tickets WHERE status = 'active'").first();
-    const totalBalance = await env.DB.prepare("SELECT SUM(balance) as total FROM users").first();
-
-    const adminDashboard = `
+  // 1. ለአድሚን የሚታይ የቁጥጥር ፓነል (Admin View)
+  if (userId === ADMIN_ID) {
+    const adminPanelMsg = `
 <b>🛠 ADMIN CONTROL PANEL</b>
 ━━━━━━━━━━━━━━━━━━
-Welcome back, <b>Chief!</b> Here is the current state of <b>SmartX Lottery</b>.
+Welcome back, <b>Chief Administrator!</b>
+You have full access to the system management tools.
 
-<b>📊 PLATFORM STATS:</b>
-• 👥 Total Users: <b>${userCount.total}</b>
-• 🎟 Active Tickets: <b>${ticketCount.total}</b>
-• 💰 Total Wallet Balances: <b>${totalBalance.total || 0} ETB</b>
+<b>Available Actions:</b>
+• Draw winners for the current round
+• Manage user balances and deposits
+• Send global announcements
+• View system statistics
+━━━━━━━━━━━━━━━━━━
+<i>What would you like to manage today?</i>`;
 
-<b>⚡ QUICK ACTIONS:</b>
-Use the buttons below to manage draws, verify payments, or update settings.
-━━━━━━━━━━━━━━━━━━`;
-
-    const adminKeyboard = Markup.inlineKeyboard([
-      [Markup.button.callback('🎰 Draw Winners Now', 'admin_draw_winners')],
-      [Markup.button.callback('💳 Pending Deposits', 'ask_for_photo')], 
-      [Markup.button.callback('📢 Broadcast Message', 'admin_broadcast')],
-      [Markup.button.callback('⚙️ Draw Settings', 'admin_settings')],
+    const adminPanelKeyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('🎰 Open Draw Menu', 'admin_draw_winners')],
+      [Markup.button.callback('📊 View Stats', 'view_stats')],
       [Markup.button.callback('🔙 Close Panel', 'back_to_settings')]
     ]);
 
-    return ctx.reply(adminDashboard, { 
+    return ctx.reply(adminPanelMsg, { 
       parse_mode: 'HTML', 
-      ...adminKeyboard 
+      ...adminPanelKeyboard 
     });
+  } 
 
-  } catch (e) {
-    console.error("Admin Dashboard Error:", e);
-    return ctx.reply("🚨 <b>Error loading admin dashboard.</b>", { parse_mode: 'HTML' });
+  // 2. ለተራ ተጠቃሚዎች የሚታይ መረጃ (User View)
+  else {
+    const contactAdminMsg = `
+<b>👨‍✈️ CONTACT ADMINISTRATION</b>
+━━━━━━━━━━━━━━━━━━
+Need help or have a business inquiry? Our official admin team is available to assist you.
+
+<b>You can contact us for:</b>
+✅ Payment & Deposit Issues
+✅ Prize Claiming Process
+✅ Partnership & Advertising
+✅ Reporting Technical Bugs
+
+━━━━━━━━━━━━━━━━━━
+<b>Official Admin:</b> @AdminUsername
+<b>Working Hours:</b> 2:00 AM - 6:00 PM (Local Time)
+━━━━━━━━━━━━━━━━━━
+<i>Please send your message with your User ID: <code>${userId}</code> for faster support.</i>`;
+
+    const userContactKeyboard = Markup.inlineKeyboard([
+      [Markup.button.url('📩 Message Admin Now', 'https://t.me/AdminUsername')],
+      [Markup.button.callback('🔙 Back to Menu', 'back_to_settings')]
+    ]);
+
+    return ctx.reply(contactAdminMsg, { 
+      parse_mode: 'HTML', 
+      ...userContactKeyboard 
+    });
   }
 });
+
     
-     
   bot.hears('👥 Invite & Earn', async (ctx) => {
   const userId = ctx.from.id;
   const botUsername = ctx.botInfo.username;
