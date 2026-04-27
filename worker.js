@@ -1131,23 +1131,45 @@ bot.action('setup_payout', (ctx) => {
 bot.on('text', async (ctx) => {
   const text = ctx.message.text;
   const userId = ctx.from.id;
+  const chatType = ctx.chat.type;
 
-  // ተጠቃሚው "Telebirr" ወይም "CBE" የሚል ጽሁፍ ከላከ (ቀለል ባለ መንገድ ለመለየት)
+  // 1. ቦቱ በግሩፕ ውስጥ የሚፃፉትን መልዕክቶች እንዳያነብ መከልከል
+  // "private" ካልሆነ (ማለትም group ወይም supergroup ከሆነ) ምንም ምላሽ አይሰጥም
+  if (chatType !== 'private') return;
+
+  // 2. ለአድሚኑ ብቻ የሚሰራ (ብር ለመጨመር)
+  if (userId === ADMIN_ID && text.startsWith('add ')) {
+    const parts = text.split(' '); 
+    if (parts.length === 3) {
+      const targetId = parts[1];
+      const amount = parseInt(parts[2]);
+      try {
+        await env.DB.prepare("UPDATE users SET balance = balance + ? WHERE user_id = ?").bind(amount, targetId).run();
+        await ctx.reply(`✅ Successfully added <b>${amount} ETB</b> to user <code>${targetId}</code>`, { parse_mode: 'HTML' });
+        await ctx.telegram.sendMessage(targetId, `✅ <b>Deposit Confirmed!</b>\nAdmin has added <b>${amount} ETB</b> to your wallet.`, { parse_mode: 'HTML' });
+      } catch (e) {
+        await ctx.reply("Error: " + e.message);
+      }
+      return; 
+    }
+  }
+
+  // 3. ተጠቃሚው መረጃ ለመመዝገብ ሲሞክር ብቻ እንዲቀበል
+  // ተጠቃሚው የግድ ሰረዝ (-) ምልክት ካላካተተ ቦቱ መልዕክቱን ችላ ይለዋል
   if (text.includes('-')) {
      if (text.toLowerCase().includes('telebirr') || text.toLowerCase().includes('cbe birr')) {
-        // እንደ Deposit Method መመዝገብ
         await env.DB.prepare("UPDATE users SET deposit_method = ? WHERE user_id = ?").bind(text, userId).run();
         return ctx.reply("✅ <b>Deposit method saved!</b> You can now use this to buy tickets.", { parse_mode: 'HTML' });
      } else {
-        // እንደ Payout Account መመዝገብ
+        // ማንኛውም ሰረዝ ያለበት ሌላ ጽሁፍ እንደ Payout Account ይቆጠራል
         await env.DB.prepare("UPDATE users SET payout_account = ? WHERE user_id = ?").bind(text, userId).run();
         return ctx.reply("✅ <b>Payout account saved!</b> Your winnings will be sent here.", { parse_mode: 'HTML' });
      }
   }
 
-  // ሌሎች የቦቱ መልዕክቶች ካሉ እዚህ ይቀጥላሉ...
+  // ተጠቃሚው ዝም ብሎ ሰረዝ የሌለበት ጽሁፍ (ለምሳሌ "ሰላም") ቢልክ ቦቱ ምንም ምላሽ አይሰጥም (ዝም ይላል)
 });
-      
+                                       
 
     // የዌብሁክ ሎጂክ
     if (request.method === 'POST') {
