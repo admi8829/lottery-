@@ -1070,7 +1070,7 @@ bot.action('request_withdraw', async (ctx) => {
   return ctx.reply(`<b>🔗 Your Invite Link:</b>\n<code>${inviteLink}</code>\n\nShare this and get 2 ETB for every join!`, { parse_mode: 'HTML' });
 });
     
- bot.action('update_profile', (ctx) => {
+ /*bot.action('update_profile', (ctx) => {
   const updateMessage = `
 <b>👤 Update Your Profile</b>
 ━━━━━━━━━━━━━━━━━━
@@ -1086,10 +1086,10 @@ Click the button below to share your contact.
       [Markup.button.contactRequest('📲 Verify & Update My Number')]
     ]).resize().oneTime()
   });
-});
+});*/
     
     //delete my information. 
- bot.action('confirm_delete', (ctx) => {
+/* bot.action('confirm_delete', (ctx) => {
   return ctx.editMessageText("<b>⚠️ Are you sure?</b>\nThis will permanently delete your registration and wallet data.", {
     parse_mode: 'HTML',
     ...Markup.inlineKeyboard([
@@ -1097,7 +1097,7 @@ Click the button below to share your contact.
       [Markup.button.callback('No, Cancel', 'back_to_settings')]
     ])
   });
-});
+});*/
 
     // ማጽደቂያ (Approval)
 bot.action(/^approve_(\d+)_(\d+)$/, async (ctx) => {
@@ -1133,11 +1133,11 @@ bot.action(/^reject_(\d+)$/, async (ctx) => {
 });
     
 
-bot.action('do_delete', async (ctx) => {
+/*bot.action('do_delete', async (ctx) => {
   await env.DB.prepare("DELETE FROM users WHERE user_id = ?").bind(ctx.from.id).run();
   await ctx.answerCbQuery("Account Deleted");
   return ctx.editMessageText("Your account has been deleted. Send /start to register again.");
-});
+});*/
 
 // 1. የክፍያ አማራጮችን ማሳያ
 bot.action('show_payments', (ctx) => {
