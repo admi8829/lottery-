@@ -148,7 +148,7 @@ bot.command('admin_menu', async (ctx) => {
   if (ctx.from.id !== ADMIN_ID) return; 
 
   const adminMsg = `
-<b>🛠 Admin Control 🛂 Panel</b>
+<b>🛠 Admin Control Panel</b>
 ━━━━━━━━━━━━━━━━━━
 Welcome back, Admin! Use the button below to randomly select 3 winners for the current active draw.
 
@@ -966,20 +966,27 @@ bot.action('ask_for_photo', async (ctx) => {
 
 // --- ፎቶ ሲላክ ለአድሚን የሚሄድበት ሲስተም ---
 bot.on('photo', async (ctx) => {
-  const adminId = "8344169004"; // 👈 እዚህ ጋር ያንተን ID ተካው (ቁጥር ብቻ)
   const userId = ctx.from.id;
+  
+  // 1. ተጠቃሚው ፎቶ እንዲልክ ተጠይቆ እንደሆነ ዳታቤዝ ውስጥ ቼክ እናድርግ
+  const user = await env.DB.prepare("SELECT deposit_method, phone FROM users WHERE user_id = ?").bind(userId).first();
+
+  if (!user || user.deposit_method !== 'WAITING_FOR_PHOTO') {
+    return ctx.reply("ℹ️ Please use the <b>📥 Deposit</b> button first before sending a screenshot.", { parse_mode: 'HTML' });
+  }
+
+  // 2. መረጃውን አሰባስበን ለተጠቃሚው ማረጋገጫ እንስጥ
   const firstName = ctx.from.first_name;
   const username = ctx.from.username ? `@${ctx.from.username}` : "No Username";
-  
-  // የሰውየውን ስልክ ከዳታቤዝ እናምጣ
-  const user = await env.DB.prepare("SELECT phone FROM users WHERE user_id = ?").bind(userId).first();
-  const phone = user?.phone || "Phone not found";
-
-  // ለተጠቃሚው ማረጋገጫ መስጠት
-  await ctx.reply("<b>⏳ Receipt Received!</b>\nYour payment is being verified by the admin. Please wait...", { parse_mode: 'HTML' });
-
-  // ለአድሚኑ መረጃውን መላክ
+  const phone = user.phone || "Not Shared";
   const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+
+  await ctx.reply("<b>⏳ Receipt Received!</b>\nAdmin is verifying your payment. Please wait...", { parse_mode: 'HTML' });
+
+  // 3. ምልክቱን ወደ NULL እንመልሰው (ሌላ ፎቶ ዝም ብሎ እንዳይልክ)
+  await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(userId).run();
+
+  // 4. ለአድሚኑ መላክ (እዚህ ጋር ADMIN_ID ከኮዱ አናት ላይ ካለው const ይወስዳል)
   const adminCaption = `
 <b>💰 New Deposit Request</b>
 ━━━━━━━━━━━━━━━━━━
@@ -988,20 +995,29 @@ bot.on('photo', async (ctx) => {
 📞 <b>Phone:</b> <code>${phone}</code>
 🔗 <b>Username:</b> ${username}
 ━━━━━━━━━━━━━━━━━━
-Select an amount to approve:`;
+Select an amount or use Custom to add any value:`;
 
   const adminKeyboard = Markup.inlineKeyboard([
-    [Markup.button.callback('✅ Approve 10 ETB', `approve_${userId}_10`)],
-    [Markup.button.callback('✅ Approve 50 ETB', `approve_${userId}_50`)],
+    [Markup.button.callback('✅ +10', `approve_${userId}_10`), Markup.button.callback('✅ +50', `approve_${userId}_50`)],
+    [Markup.button.callback('✅ +100', `approve_${userId}_100`), Markup.button.callback('✅ +500', `approve_${userId}_500`)],
+    [Markup.button.callback('➕ Custom Amount', `custom_approve_${userId}`)], // የፈለገውን ለመጨመር
     [Markup.button.callback('❌ Reject Request', `reject_${userId}`)]
   ]);
 
-  return ctx.telegram.sendPhoto(adminId, photoId, {
+  return ctx.telegram.sendPhoto(ADMIN_ID, photoId, {
     caption: adminCaption,
     parse_mode: 'HTML',
     ...adminKeyboard
   });
 });
+
+// --- አድሚኑ የፈለገውን ያህል ብር እንዲጨምር የሚያስችለው Logic ---
+bot.action(/^custom_approve_(\d+)$/, async (ctx) => {
+  const targetUserId = ctx.match[1];
+  await ctx.answerCbQuery();
+  return ctx.reply(`<b>✍️ Enter Amount:</b>\nPlease type the exact amount to add for User ID: <code>${targetUserId}</code>\n\nExample: <code>add ${targetUserId} 250</code>`, { parse_mode: 'HTML' });
+});
+                                                                                       
     
 // 4. Withdrawal Request
 bot.action('request_withdraw', async (ctx) => {
