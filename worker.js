@@ -918,34 +918,101 @@ bot.action('final_delete_account', async (ctx) => {
 bot.hears('💰 Wallet & Invite', async (ctx) => {
   try {
     const userId = ctx.from.id;
-    const user = await env.DB.prepare("SELECT balance, invite_count FROM users WHERE user_id = ?").bind(userId).first();
+    const user = await env.DB.prepare("SELECT balance, invite_count, payout_account FROM users WHERE user_id = ?").bind(userId).first();
 
     const balance = user?.balance || 0;
     const invites = user?.invite_count || 0;
+    const payoutAcc = user?.payout_account || "⚠️ Not set (Go to Settings)";
+    
     const botUsername = ctx.botInfo.username;
     const inviteLink = `https://t.me/${botUsername}?start=ref_${userId}`;
 
     const message = `
-<b>👛 Your Wallet & Invites</b>
+<b>👛 YOUR WALLET & REWARDS</b>
 ━━━━━━━━━━━━━━━━━━
-<b>💰 Balance:</b> <code>${balance} ETB</code>
-<b>👥 Total Invites:</b> <code>${invites} users</code>
+💰 <b>Current Balance:</b> <code>${balance} ETB</code>
+👥 <b>Total Referrals:</b> <code>${invites} Users</code>
+🏦 <b>Payout Account:</b> <code>${payoutAcc}</code>
 ━━━━━━━━━━━━━━━━━━
-<b>🎁 Invite & Earn:</b>
-Share your link and get <b>2 ETB</b> for every friend!
-Your Link: <code>${inviteLink}</code>`;
+🎁 <b>Referral Bonus:</b> Get <b>2.00 ETB</b> for every friend!
+🔗 <b>Link:</b> <code>${inviteLink}</code>`;
 
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback('🎟 Buy Ticket (10 ETB)', 'buy_with_wallet')],
       [Markup.button.callback('💸 Withdraw', 'request_withdraw'), Markup.button.callback('📥 Deposit', 'show_deposit_info')],
-      [Markup.button.callback('🔙 Back', 'back_to_settings')]
+      [Markup.button.callback('🔄 Refresh Stats', 'refresh_wallet')]
     ]);
 
     return ctx.reply(message, { parse_mode: 'HTML', ...keyboard });
   } catch (e) {
+    return ctx.reply("⚠️ Wallet Error: " + e.message);
+  }
+});
+
+    bot.action('request_withdraw', async (ctx) => {
+  const userId = ctx.from.id;
+  const MIN_WITHDRAW = 50; // ዝቅተኛው የመውጫ መጠን እዚህ ጋር ይቀየራል
+
+  try {
+    const user = await env.DB.prepare("SELECT balance, payout_account, phone FROM users WHERE user_id = ?").bind(userId).first();
+
+    // 1. Payout Account መኖሩን ቼክ ማድረግ
+    if (!user?.payout_account) {
+      await ctx.answerCbQuery("⚠️ Set your account first!", { show_alert: true });
+      return ctx.reply("❌ <b>Action Required:</b>\nPlease go to <b>⚙️ Settings</b> and set your Bank/Account number before requesting a withdrawal.", { parse_mode: 'HTML' });
+    }
+
+    // 2. በቂ ባላንስ መኖሩን ቼክ ማድረግ
+    if (user.balance < MIN_WITHDRAW) {
+      await ctx.answerCbQuery(`❌ Minimum withdrawal is ${MIN_WITHDRAW} ETB`, { show_alert: true });
+      return ctx.reply(`⚠️ <b>Insufficient Balance!</b>\nYou need at least <b>${MIN_WITHDRAW} ETB</b> to request a withdrawal. Your current balance is <b>${user.balance} ETB</b>.`, { parse_mode: 'HTML' });
+    }
+
+    // 3. ለአድሚኑ ጥያቄ መላክ
+    const adminWithdrawMsg = `
+<b>🔔 NEW WITHDRAWAL REQUEST</b>
+━━━━━━━━━━━━━━━━━━
+👤 <b>Name:</b> ${ctx.from.first_name}
+🆔 <b>User ID:</b> <code>${userId}</code>
+📞 <b>Phone:</b> ${user.phone || "Not shared"}
+💰 <b>Amount:</b> <code>${user.balance} ETB</code>
+🏦 <b>Bank Acc:</b> <code>${user.payout_account}</code>
+━━━━━━━━━━━━━━━━━━`;
+
+    // ለአድሚኑ መላክ
+    await ctx.telegram.sendMessage(ADMIN_ID, adminWithdrawMsg, {
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Paid (Mark as Success)', `confirm_paid_${userId}_${user.balance}`)]
+      ])
+    });
+
+    await ctx.answerCbQuery("✅ Request Sent Successfully!");
+    return ctx.reply("✅ <b>Request Received!</b>\nYour withdrawal request has been sent to the admin. You will receive a notification when the payment is processed.", { parse_mode: 'HTML' });
+
+  } catch (e) {
+    return ctx.answerCbQuery("Error: " + e.message);
+  }
+});
+
+    bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
+  const targetId = ctx.match[1];
+  const amount = ctx.match[2];
+
+  try {
+    // ባላንሱን ወደ 0 መቀየር
+    await env.DB.prepare("UPDATE users SET balance = 0 WHERE user_id = ?").bind(targetId).run();
+
+    // ለተጠቃሚው ማሳወቅ
+    await ctx.telegram.sendMessage(targetId, `🎊 <b>Payment Successful!</b>\nYour withdrawal of <b>${amount} ETB</b> has been processed. Check your bank account.`, { parse_mode: 'HTML' });
+
+    await ctx.editMessageText(`✅ <b>COMPLETED:</b> ${amount} ETB paid to ${targetId}`);
+    return ctx.answerCbQuery("Success!");
+  } catch (e) {
     return ctx.reply("Error: " + e.message);
   }
 });
+    
 
 bot.action('view_my_tickets', async (ctx) => {
   const userId = ctx.from.id;
@@ -1075,13 +1142,7 @@ bot.action(/^custom_approve_(\d+)$/, async (ctx) => {
   await ctx.answerCbQuery();
   return ctx.reply(`<b>✍️ Enter Amount:</b>\nPlease type the exact amount to add for User ID: <code>${targetUserId}</code>\n\nExample: <code>add ${targetUserId} 250</code>`, { parse_mode: 'HTML' });
 });
-                                                                                       
-    
-// 4. Withdrawal Request
-bot.action('request_withdraw', async (ctx) => {
-  await ctx.answerCbQuery();
-  return ctx.reply("📩 <b>Withdrawal Request</b>\nPlease contact @AdminUsername with your registered phone and the amount you wish to withdraw.", { parse_mode: 'HTML' });
-});
+                                                              
                         
   bot.action('view_invite_link', async (ctx) => {
   const userId = ctx.from.id;
