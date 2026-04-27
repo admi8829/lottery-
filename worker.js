@@ -1065,51 +1065,66 @@ bot.action('ask_for_photo', async (ctx) => {
     
 
 // --- ፎቶ ሲላክ ለአድሚን የሚሄድበት ሲስተም ---
+// Triggered when user clicks "Deposit"
+bot.action('ask_for_photo', async (ctx) => {
+  const userId = ctx.from.id;
+  
+  // Mark user as waiting to upload a photo
+  await env.DB.prepare("UPDATE users SET deposit_method = 'WAITING_FOR_PHOTO' WHERE user_id = ?")
+    .bind(userId)
+    .run();
+
+  await ctx.answerCbQuery("Waiting for screenshot...");
+  return ctx.reply("<b>📸 DEPOSIT VERIFICATION</b>\n━━━━━━━━━━━━━━━━━━\nPlease <b>Upload your Screenshot</b> (Telebirr or Bank receipt) now.\n\n<i>Ensure the Transaction ID and Amount are clearly visible.</i>", { parse_mode: 'HTML' });
+});
+
+// Handling the Photo Upload
 bot.on('photo', async (ctx) => {
   const userId = ctx.from.id;
   
-  // 1. ተጠቃሚው ፎቶ እንዲልክ ተጠይቆ እንደሆነ ዳታቤዝ ውስጥ ቼክ እናድርግ
+  // 1. Security Check: Is the user in "Waiting for Photo" mode?
   const user = await env.DB.prepare("SELECT deposit_method, phone FROM users WHERE user_id = ?").bind(userId).first();
 
   if (!user || user.deposit_method !== 'WAITING_FOR_PHOTO') {
-    return ctx.reply("ℹ️ Please use the <b>📥 Deposit</b> button first before sending a screenshot.", { parse_mode: 'HTML' });
+    return ctx.reply("ℹ️ Please click the <b>📥 Deposit</b> button before sending a screenshot.", { parse_mode: 'HTML' });
   }
 
-  // 2. መረጃውን አሰባስበን ለተጠቃሚው ማረጋገጫ እንስጥ
   const firstName = ctx.from.first_name;
   const username = ctx.from.username ? `@${ctx.from.username}` : "No Username";
   const phone = user.phone || "Not Shared";
   const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
 
-  await ctx.reply("<b>⏳ Receipt Received!</b>\nAdmin is verifying your payment. Please wait...", { parse_mode: 'HTML' });
+  // Notify User
+  await ctx.reply("<b>⏳ Receipt Received!</b>\nAdmin is now verifying your deposit. You will be notified once approved.", { parse_mode: 'HTML' });
 
-  // 3. ምልክቱን ወደ NULL እንመልሰው (ሌላ ፎቶ ዝም ብሎ እንዳይልክ)
+  // 2. Clear the waiting status
   await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(userId).run();
 
-  // 4. ለአድሚኑ መላክ (እዚህ ጋር ADMIN_ID ከኮዱ አናት ላይ ካለው const ይወስዳል)
-  const adminCaption = `
-<b>💰 New Deposit Request</b>
+  // 3. Send to Admin for Approval
+  const adminDepositCaption = `
+<b>💰 NEW DEPOSIT REQUEST</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>Name:</b> ${firstName}
-🆔 <b>User ID:</b> <code>${userId}</code>
+👤 <b>User:</b> ${firstName}
+🆔 <b>ID:</b> <code>${userId}</code>
 📞 <b>Phone:</b> <code>${phone}</code>
 🔗 <b>Username:</b> ${username}
 ━━━━━━━━━━━━━━━━━━
-Select an amount or use Custom to add any value:`;
+<b>Select amount to credit to user:</b>`;
 
-  const adminKeyboard = Markup.inlineKeyboard([
-    [Markup.button.callback('✅ +10', `approve_${userId}_10`), Markup.button.callback('✅ +50', `approve_${userId}_50`)],
-    [Markup.button.callback('✅ +100', `approve_${userId}_100`), Markup.button.callback('✅ +500', `approve_${userId}_500`)],
-    [Markup.button.callback('➕ Custom Amount', `custom_approve_${userId}`)], // የፈለገውን ለመጨመር
+  const adminDepositKeyboard = Markup.inlineKeyboard([
+    [Markup.button.callback('✅ +10 ETB', `approve_${userId}_10`), Markup.button.callback('✅ +50 ETB', `approve_${userId}_50`)],
+    [Markup.button.callback('✅ +100 ETB', `approve_${userId}_100`), Markup.button.callback('✅ +500 ETB', `approve_${userId}_500`)],
+    [Markup.button.callback('➕ Custom Amount', `custom_approve_${userId}`)],
     [Markup.button.callback('❌ Reject Request', `reject_${userId}`)]
   ]);
 
   return ctx.telegram.sendPhoto(ADMIN_ID, photoId, {
-    caption: adminCaption,
+    caption: adminDepositCaption,
     parse_mode: 'HTML',
-    ...adminKeyboard
+    ...adminDepositKeyboard
   });
 });
+
 
 // --- አድሚኑ የፈለገውን ያህል ብር እንዲጨምር የሚያስችለው Logic ---
 bot.action(/^custom_approve_(\d+)$/, async (ctx) => {
@@ -1168,51 +1183,62 @@ bot.on('text', async (ctx) => {
   const text = ctx.message.text;
   const userId = ctx.from.id;
 
-  // --- A. Handling Bank Details (Check if text contains a dash '-' or bank names) ---
+  // --- A. Handling Bank Details (Triggered if text contains a dash '-') ---
   if (text.includes('-') && text.length > 8) {
-    await env.DB.prepare("UPDATE users SET payout_account = ? WHERE user_id = ?").bind(text, userId).run();
+    await env.DB.prepare("UPDATE users SET payout_account = ? WHERE user_id = ?")
+      .bind(text, userId)
+      .run();
+    
     const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(userId).first();
     
-    return ctx.reply(`✅ <b>Payment Info Saved!</b>\n\nNow, type the <b>Amount</b> you wish to withdraw.\n(Max available: <b>${user.balance} ETB</b>)`, { parse_mode: 'HTML' });
+    const successMsg = `
+✅ <b>Payment Method Saved!</b>
+━━━━━━━━━━━━━━━━━━
+🏦 <b>Bank:</b> <code>${text}</code>
+💰 <b>Balance:</b> <code>${user.balance} ETB</code>
+━━━━━━━━━━━━━━━━━━
+Now, please type the <b>Amount</b> you wish to withdraw:`;
+
+    return ctx.reply(successMsg, { parse_mode: 'HTML' });
   }
 
-  // --- B. Handling Withdrawal Amount (Check if text is a number) ---
+  // --- B. Handling Withdrawal Amount (Triggered if text is a number) ---
   if (!isNaN(text) && parseInt(text) >= 50) {
     const amount = parseInt(text);
     const user = await env.DB.prepare("SELECT balance, payout_account, phone FROM users WHERE user_id = ?").bind(userId).first();
 
     if (!user.payout_account) {
-       return ctx.reply("❌ Please provide your Bank Details first.\nExample: <i>CBE - 1000123456789</i>");
+       return ctx.reply("❌ <b>Missing Bank Info!</b>\nPlease provide your Bank Details first.\nExample: <i>CBE - 1000123456789</i>", { parse_mode: 'HTML' });
     }
 
     if (amount > user.balance) {
-      return ctx.reply(`❌ <b>Insufficient Balance!</b>\nYou can only withdraw up to <b>${user.balance} ETB</b>.`);
+      return ctx.reply(`❌ <b>Insufficient Funds!</b>\nYour current balance is <b>${user.balance} ETB</b>. Please enter a lower amount.`, { parse_mode: 'HTML' });
     }
 
-    // Send Request to Admin
-    const adminMsg = `
+    // Notify Admin of Withdrawal Request
+    const adminWithdrawMsg = `
 <b>🔔 NEW WITHDRAWAL REQUEST</b>
 ━━━━━━━━━━━━━━━━━━
 👤 <b>Name:</b> ${ctx.from.first_name}
 🆔 <b>User ID:</b> <code>${userId}</code>
-📞 <b>Phone:</b> ${user.phone || "Not shared"}
+📞 <b>Phone:</b> <code>${user.phone || "Not Shared"}</code>
 💰 <b>Amount:</b> <code>${amount} ETB</code>
 🏦 <b>Bank Acc:</b> <code>${user.payout_account}</code>
 ━━━━━━━━━━━━━━━━━━`;
 
-    await ctx.telegram.sendMessage(ADMIN_ID, adminMsg, {
+    await ctx.telegram.sendMessage(ADMIN_ID, adminWithdrawMsg, {
       parse_mode: 'HTML',
       ...Markup.inlineKeyboard([
         [Markup.button.callback('✅ Confirm Paid', `confirm_paid_${userId}_${amount}`)]
       ])
     });
 
-    return ctx.reply("✅ <b>Withdrawal Request Sent!</b>\nAdmin will process your payment soon. You will be notified once it is done.", { parse_mode: 'HTML' });
+    return ctx.reply("✅ <b>Request Sent Successfully!</b>\nAdmin will review your request and send the payment soon.", { parse_mode: 'HTML' });
   }
 
-  // ... Other text handling (start, help, etc) ...
+  // ... [Other text handlers like /start or Help can go here] ...
 });
-                                                                                       
+    
 
     // የዌብሁክ ሎጂክ
     if (request.method === 'POST') {
