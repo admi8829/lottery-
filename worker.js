@@ -23,33 +23,28 @@ const mainKeyboard = Markup.keyboard([
     ]).resize();
 
     // --- 2. Start Command ---
-   bot.start(async (ctx) => {
+    // --- 2. Start Command ---
+bot.start(async (ctx) => {
   try {
     const userId = ctx.from.id;
     const startPayload = ctx.startPayload;
     
-    // 1. ተጠቃሚው መመዝገቡን ቼክ ማድረግ
+    // 1. ተጠቃሚው መኖሩን ማረጋገጥ
     const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
 
-    // 2. ተጠቃሚው ቀድሞ ተመዝግቦ ከሆነ (ስልክ ካለው)
+    // 2. ተጠቃሚው ቀድሞ ተመዝግቦ ከሆነ
     if (user && user.phone) {
-      
-      // --- አዲሱ ማስተካከያ እዚህ ጋር ነው ---
-      // ተጠቃሚው ቻናሉን መቀላቀሉን ቼክ እናደርጋለን
-      const member = await ctx.telegram.getChatMember("@SmartX_Ethio", userId);
+      // ቻናሉ ላይ መኖሩን ቼክ እናድርግ
+      const member = await ctx.telegram.getChatMember("@SmartX_Ethio", userId).catch(() => ({ status: 'left' }));
       const isMember = ['member', 'administrator', 'creator'].includes(member.status);
 
       if (isMember) {
-        // አባል ከሆነና ስልክ ካለው በቀጥታ Main Menu
-        const welcomeBackMsg = `
-👋 <b>Welcome Back, ${user.name}!</b>
-━━━━━━━━━━━━━━━━━━
-Your account is active and ready. What would you like to do today?
-━━━━━━━━━━━━━━━━━━`;
-        return ctx.reply(welcomeBackMsg, { parse_mode: 'HTML', ...mainKeyboard });
+        return ctx.reply(`👋 <b>Welcome Back, ${user.name}!</b>\n━━━━━━━━━━━━━━━━━━\n<i>Your account is secure and active.</i>`, { 
+          parse_mode: 'HTML', ...mainKeyboard 
+        });
       } else {
-        // ስልክ አለው ግን ቻናሉን ለቆ ከሆነ ድጋሜ እንዲቀላቀል መጠየቅ
-        return ctx.reply("👋 <b>Welcome Back!</b>\nPlease join our channel to continue using the bot.", {
+        // ስልክ አለው ግን ቻናሉን ለቆ ከሆነ
+        return ctx.reply("👋 <b>Welcome Back!</b>\nPlease <b>re-join</b> our channel to access the bot features.", {
           parse_mode: 'HTML',
           ...Markup.inlineKeyboard([
             [Markup.button.url('📢 Join Channel', 'https://t.me/SmartX_Ethio')],
@@ -59,7 +54,7 @@ Your account is active and ready. What would you like to do today?
       }
     }
 
-    // 3. አዲስ ተጠቃሚ ከሆነ የሚደረግ ምዝገባ (እንደ ቀድሞው)
+    // 3. አዲስ ተጠቃሚ ከሆነ (Registration)
     let referrerId = null;
     if (startPayload && startPayload.startsWith('ref_')) {
       const ref = parseInt(startPayload.replace('ref_', ''));
@@ -67,65 +62,60 @@ Your account is active and ready. What would you like to do today?
     }
 
     await env.DB.prepare(
-      "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, ?, ?)"
-    ).bind(userId, ctx.from.first_name, referrerId, 0, 0).run();
+      "INSERT OR IGNORE INTO users (user_id, name, referred_by, balance, invite_count) VALUES (?, ?, ?, 0, 0)"
+    ).bind(userId, ctx.from.first_name, referrerId).run();
 
     const welcomeMsg = `
-✨ <b>Welcome to SmartX Pottery!</b> ✨
+✨ <b>SMARTX LOTTERY</b> ✨
 ━━━━━━━━━━━━━━━━━━
-To start winning amazing prizes, please complete your registration.
+Welcome! To start winning, please complete these steps:
 
-<b>1. Join our channel:</b> @SmartX_Ethio
-<b>2. Share your phone number</b> using the button below.
+1️⃣ <b>Join:</b> @SmartX_Ethio
+2️⃣ <b>Verify:</b> Share your contact below.
 ━━━━━━━━━━━━━━━━━━`;
 
     return ctx.reply(welcomeMsg, { parse_mode: 'HTML', ...requestPhoneKeyboard });
 
   } catch (e) {
-    return ctx.reply("Error: " + e.message);
+    console.error(e);
+    return ctx.reply("⚠️ Connection error. Please /start again.");
   }
 });
-          
-    // --- 3. Phone Verification & Draw Info Display ---
+
+// --- 3. Phone Verification ---
 bot.on('contact', async (ctx) => {
   try {
     const userId = ctx.from.id;
     const contact = ctx.message.contact;
-    const firstName = ctx.from.first_name;
 
-    // 1. Security Check: Ensures the user shared their own contact
     if (contact.user_id !== userId) {
-      return ctx.reply("❌ <b>Security Alert!</b>\nFor verification purposes, you must share your own contact number using the button below.", { parse_mode: 'HTML' });
+      return ctx.reply("❌ <b>Security Alert!</b>\nPlease share <b>your own</b> contact using the button.", { parse_mode: 'HTML' });
     }
 
-    // 2. Database Update: Register phone and name
     await env.DB.prepare("UPDATE users SET phone = ?, name = ? WHERE user_id = ?")
-      .bind(contact.phone_number, firstName, userId).run();
+      .bind(contact.phone_number, ctx.from.first_name, userId).run();
 
-    // 3. Referral Reward System: Pays the referrer 2 ETB
+    // Referral System
     const user = await env.DB.prepare("SELECT referred_by FROM users WHERE user_id = ?").bind(userId).first();
-    if (user && user.referred_by) {
-      await env.DB.prepare("UPDATE users SET balance = balance + 2, invite_count = invite_count + 1 WHERE user_id = ?")
-        .bind(user.referred_by).run();
-      
-      // Notify the person who invited this user
-      try {
-        await ctx.telegram.sendMessage(user.referred_by, "🎊 <b>New Referral Reward!</b>\nYour friend joined successfully. <b>+2 ETB</b> has been added to your balance.", { parse_mode: 'HTML' });
-      } catch (err) {
-        console.log("Could not send referral notification.");
-      }
+    if (user?.referred_by) {
+      await env.DB.prepare("UPDATE users SET balance = balance + 2, invite_count = invite_count + 1 WHERE user_id = ?").bind(user.referred_by).run();
+      ctx.telegram.sendMessage(user.referred_by, "🎊 <b>Referral Success!</b>\nYour friend joined. <b>+2 ETB</b> added to your wallet.", { parse_mode: 'HTML' }).catch(() => {});
     }
 
-    // 4. Force Join Instructions: Clean and Professional UI
+    // --- SECURITY & UX CHECK ---
+    const member = await ctx.telegram.getChatMember("@SmartX_Ethio", userId).catch(() => ({ status: 'left' }));
+    const isMember = ['member', 'administrator', 'creator'].includes(member.status);
+
+    if (isMember) {
+      return ctx.reply(`✅ <b>Verification Success!</b>\nYou are already a member. Access granted.`, {
+        parse_mode: 'HTML', ...mainKeyboard 
+      });
+    }
+
     const completionMsg = `
-✨ <b>Registration Success!</b> ✨
+✨ <b>REGISTRATION SUCCESS!</b> ✨
 ━━━━━━━━━━━━━━━━━━
-Hello <b>${firstName}</b>, your phone number has been verified and your account is created.
-
-🔓 <b>One Final Step:</b>
-To unlock the <b>Main Menu</b> and start participating in our lottery draws, you must <b>join our official channel</b>.
-
-Joining helps you stay updated with draw results, winners, and upcoming prizes!
+Final step: Join our channel to unlock the <b>Main Menu</b> and see results.
 ━━━━━━━━━━━━━━━━━━`;
 
     return ctx.reply(completionMsg, {
@@ -137,14 +127,17 @@ Joining helps you stay updated with draw results, winners, and upcoming prizes!
     });
 
   } catch (e) {
-    console.error("Contact Processing Error:", e);
-    return ctx.reply("⚠️ <b>System Error:</b> We encountered a problem while saving your contact. Please try again.", { parse_mode: 'HTML' });
+    return ctx.reply("⚠️ System Error. Please try again.");
   }
 });
-    
-    // --- [ 1. የአድሚን ሜኑ ትዕዛዝ ] ---
-bot.command('admin_menu', async (ctx) => {
-  // Check if the user is the authorized admin
+
+// --- 4. Admin Menu ---
+          
+                                                                                                                      
+                                                                                                                      
+                                                                                                                      
+                                                                                                                      
+  bot.command('admin_menu', async (ctx) => {
   if (ctx.from.id !== ADMIN_ID) return; 
 
   const adminMsg = `
