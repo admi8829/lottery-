@@ -757,6 +757,42 @@ Need help or have a business inquiry? Our official admin team is available to as
   }
 });
 
+ bot.hears('🛡 Privacy', async (ctx) => {
+  const privacyMessage = `
+<b>🛡 PRIVACY & SECURITY POLICY</b>
+━━━━━━━━━━━━━━━━━━
+At <b>SmartX Lottery</b>, we take your privacy seriously. Here is how we handle your information:
+
+<b>1. Data Collection 📊</b>
+• We only collect your <b>Telegram ID</b>, <b>Name</b>, and <b>Phone Number</b> (with your permission) to verify your tickets and prizes.
+• Payment screenshots are used only for transaction verification.
+
+<b>2. Secure Transactions 🔐</b>
+• All your balance and ticket data are stored in a secure encrypted database.
+• We do not share your personal information with any third-party companies.
+
+<b>3. Prize Transparency 🏆</b>
+• Winner's Ticket Numbers and Names are shared in our official channel for transparency, but full phone numbers are always kept hidden.
+
+<b>4. Your Rights ⚖️</b>
+• You can view your registered data at any time in the <b>⚙️ Settings</b> menu.
+• If you wish to delete your account, you can contact our <b>👨‍✈️ Admin</b>.
+
+━━━━━━━━━━━━━━━━━━
+<i>"Your security is our priority. Play with confidence."</i>
+━━━━━━━━━━━━━━━━━━`;
+
+  const privacyKeyboard = Markup.inlineKeyboard([
+    [Markup.button.url('📜 Official Channel', 'https://t.me/SmartX_Ethio')],
+    [Markup.button.callback('🔙 Back to Menu', 'back_to_settings')]
+  ]);
+
+  return ctx.reply(privacyMessage, { 
+    parse_mode: 'HTML', 
+    ...privacyKeyboard 
+  });
+});
+    
     
   bot.hears('👥 Invite & Earn', async (ctx) => {
   const userId = ctx.from.id;
