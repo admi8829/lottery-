@@ -1127,32 +1127,6 @@ bot.action(/^reject_(\d+)$/, async (ctx) => {
 });
     
 
-    
-
-// 1. የክፍያ አማራጮችን ማሳያ
-bot.action('show_payments', (ctx) => {
-  const paymentKeyboard = Markup.inlineKeyboard([
-    [Markup.button.callback('📥 Setup Deposit Method', 'setup_deposit')],
-    [Markup.button.callback('📤 Setup Payout Account', 'setup_payout')],
-    [Markup.button.callback('🔙 Back to Settings', 'back_to_settings')]
-  ]);
-
-  return ctx.editMessageText("<b>💳 Payment Settings</b>\n\nSetup how you want to pay for tickets and how you want to receive your winnings.", {
-    parse_mode: 'HTML',
-    ...paymentKeyboard
-  });
-});
-
-// 2. ተጠቃሚው የሚከፍልበትን መንገድ ሲመርጥ
-bot.action('setup_deposit', (ctx) => {
-  return ctx.reply("<b>📥 Deposit Method Setup</b>\nPlease type the service you use and your phone number.\n\nExample: <code>Telebirr - 0911223344</code>", { parse_mode: 'HTML' });
-});
-
-// 3. ተጠቃሚው ሽልማት የሚቀበልበትን አካውንት ሲመርጥ
-bot.action('setup_payout', (ctx) => {
-  return ctx.reply("<b>📤 Payout Account Setup</b>\nPlease type your Bank name and Account number for receiving prizes.\n\nExample: <code>CBE - 1000223344556</code>", { parse_mode: 'HTML' });
-});
-
 // 4. የተላከውን ጽሁፍ ተቀብሎ ዳታቤዝ ውስጥ ማስገባት
 bot.on('text', async (ctx) => {
   const text = ctx.message.text;
