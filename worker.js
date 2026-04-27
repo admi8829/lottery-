@@ -922,7 +922,7 @@ bot.hears('💰 Wallet & Invite', async (ctx) => {
 
     const balance = user?.balance || 0;
     const invites = user?.invite_count || 0;
-    const payoutAcc = user?.payout_account || "⚠️ Not set (Go to Settings)";
+    const payoutAcc = user?.payout_account || "None (Will be asked during withdrawal)";
     
     const botUsername = ctx.botInfo.username;
     const inviteLink = `https://t.me/${botUsername}?start=ref_${userId}`;
@@ -932,10 +932,10 @@ bot.hears('💰 Wallet & Invite', async (ctx) => {
 ━━━━━━━━━━━━━━━━━━
 💰 <b>Current Balance:</b> <code>${balance} ETB</code>
 👥 <b>Total Referrals:</b> <code>${invites} Users</code>
-🏦 <b>Payout Account:</b> <code>${payoutAcc}</code>
+🏦 <b>Payment Info:</b> <code>${payoutAcc}</code>
 ━━━━━━━━━━━━━━━━━━
 🎁 <b>Referral Bonus:</b> Get <b>2.00 ETB</b> for every friend!
-🔗 <b>Link:</b> <code>${inviteLink}</code>`;
+🔗 <b>Invite Link:</b> <code>${inviteLink}</code>`;
 
     const keyboard = Markup.inlineKeyboard([
       [Markup.button.callback('🎟 Buy Ticket (10 ETB)', 'buy_with_wallet')],
@@ -951,49 +951,24 @@ bot.hears('💰 Wallet & Invite', async (ctx) => {
 
     bot.action('request_withdraw', async (ctx) => {
   const userId = ctx.from.id;
-  const MIN_WITHDRAW = 50; // ዝቅተኛው የመውጫ መጠን እዚህ ጋር ይቀየራል
+  const MIN_WITHDRAW = 50;
 
   try {
-    const user = await env.DB.prepare("SELECT balance, payout_account, phone FROM users WHERE user_id = ?").bind(userId).first();
+    const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(userId).first();
 
-    // 1. Payout Account መኖሩን ቼክ ማድረግ
-    if (!user?.payout_account) {
-      await ctx.answerCbQuery("⚠️ Set your account first!", { show_alert: true });
-      return ctx.reply("❌ <b>Action Required:</b>\nPlease go to <b>⚙️ Settings</b> and set your Bank/Account number before requesting a withdrawal.", { parse_mode: 'HTML' });
+    if (!user || user.balance < MIN_WITHDRAW) {
+      await ctx.answerCbQuery(`❌ Min withdrawal is ${MIN_WITHDRAW} ETB`, { show_alert: true });
+      return ctx.reply(`⚠️ <b>Insufficient Balance!</b>\nYou need at least <b>${MIN_WITHDRAW} ETB</b>. Your current balance is <b>${user?.balance || 0} ETB</b>.`, { parse_mode: 'HTML' });
     }
 
-    // 2. በቂ ባላንስ መኖሩን ቼክ ማድረግ
-    if (user.balance < MIN_WITHDRAW) {
-      await ctx.answerCbQuery(`❌ Minimum withdrawal is ${MIN_WITHDRAW} ETB`, { show_alert: true });
-      return ctx.reply(`⚠️ <b>Insufficient Balance!</b>\nYou need at least <b>${MIN_WITHDRAW} ETB</b> to request a withdrawal. Your current balance is <b>${user.balance} ETB</b>.`, { parse_mode: 'HTML' });
-    }
-
-    // 3. ለአድሚኑ ጥያቄ መላክ
-    const adminWithdrawMsg = `
-<b>🔔 NEW WITHDRAWAL REQUEST</b>
-━━━━━━━━━━━━━━━━━━
-👤 <b>Name:</b> ${ctx.from.first_name}
-🆔 <b>User ID:</b> <code>${userId}</code>
-📞 <b>Phone:</b> ${user.phone || "Not shared"}
-💰 <b>Amount:</b> <code>${user.balance} ETB</code>
-🏦 <b>Bank Acc:</b> <code>${user.payout_account}</code>
-━━━━━━━━━━━━━━━━━━`;
-
-    // ለአድሚኑ መላክ
-    await ctx.telegram.sendMessage(ADMIN_ID, adminWithdrawMsg, {
-      parse_mode: 'HTML',
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback('✅ Paid (Mark as Success)', `confirm_paid_${userId}_${user.balance}`)]
-      ])
-    });
-
-    await ctx.answerCbQuery("✅ Request Sent Successfully!");
-    return ctx.reply("✅ <b>Request Received!</b>\nYour withdrawal request has been sent to the admin. You will receive a notification when the payment is processed.", { parse_mode: 'HTML' });
-
+    await ctx.answerCbQuery();
+    return ctx.reply("🏦 <b>STEP 1: PAYMENT DETAILS</b>\n\nPlease type your <b>Bank Name</b> and <b>Account Number</b> where you want to receive the money.\n\n<i>Example: CBE - 1000123456789</i>", { parse_mode: 'HTML' });
   } catch (e) {
     return ctx.answerCbQuery("Error: " + e.message);
   }
 });
+
+    
 
     bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
   const targetId = ctx.match[1];
@@ -1192,40 +1167,52 @@ bot.action(/^reject_(\d+)$/, async (ctx) => {
 bot.on('text', async (ctx) => {
   const text = ctx.message.text;
   const userId = ctx.from.id;
-  const chatType = ctx.chat.type;
 
-  // 1. ቦቱ በግሩፕ ውስጥ የሚፃፉትን መልዕክቶች እንዳያነብ (Security)
-  if (chatType !== 'private') return;
-
-  // 2. ለአድሚኑ ብቻ፡ በእጅ ብር ለመጨመር (add [userId] [amount])
-  if (userId === ADMIN_ID && text.startsWith('add ')) {
-    const parts = text.split(' '); 
-    if (parts.length === 3) {
-      const targetId = parts[1];
-      const amount = parseInt(parts[2]);
-      try {
-        await env.DB.prepare("UPDATE users SET balance = balance + ? WHERE user_id = ?").bind(amount, targetId).run();
-        await ctx.reply(`✅ Successfully added <b>${amount} ETB</b> to user <code>${targetId}</code>`, { parse_mode: 'HTML' });
-        await ctx.telegram.sendMessage(targetId, `✅ <b>Deposit Confirmed!</b>\nAdmin has added <b>${amount} ETB</b> to your wallet.`, { parse_mode: 'HTML' });
-      } catch (e) {
-        await ctx.reply("Error: " + e.message);
-      }
-      return; 
-    }
-  }
-
-  // 3. ለተጠቃሚዎች፡ የሽልማት መቀበያ አካውንት (Payout) ለመመዝገብ ብቻ
-  // ተጠቃሚው ሰረዝ (-) ካላካተተ ቦቱ መልዕክቱን ችላ ይለዋል
-  if (text.includes('-')) {
-      // ማንኛውም ሰረዝ ያለበት ጽሁፍ እንደ Payout Account ይቆጠራል
-      await env.DB.prepare("UPDATE users SET payout_account = ? WHERE user_id = ?").bind(text, userId).run();
-      return ctx.reply("✅ <b>Payout account saved!</b> Your winnings will be sent here.", { parse_mode: 'HTML' });
-  }
-
-  // ሌላ ማንኛውም ጽሁፍ ቢመጣ ቦቱ ዝም ይላል (ምንም አይመልስም)
-});
+  // --- A. Handling Bank Details (Check if text contains a dash '-' or bank names) ---
+  if (text.includes('-') && text.length > 8) {
+    await env.DB.prepare("UPDATE users SET payout_account = ? WHERE user_id = ?").bind(text, userId).run();
+    const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(userId).first();
     
-                                       
+    return ctx.reply(`✅ <b>Payment Info Saved!</b>\n\nNow, type the <b>Amount</b> you wish to withdraw.\n(Max available: <b>${user.balance} ETB</b>)`, { parse_mode: 'HTML' });
+  }
+
+  // --- B. Handling Withdrawal Amount (Check if text is a number) ---
+  if (!isNaN(text) && parseInt(text) >= 50) {
+    const amount = parseInt(text);
+    const user = await env.DB.prepare("SELECT balance, payout_account, phone FROM users WHERE user_id = ?").bind(userId).first();
+
+    if (!user.payout_account) {
+       return ctx.reply("❌ Please provide your Bank Details first.\nExample: <i>CBE - 1000123456789</i>");
+    }
+
+    if (amount > user.balance) {
+      return ctx.reply(`❌ <b>Insufficient Balance!</b>\nYou can only withdraw up to <b>${user.balance} ETB</b>.`);
+    }
+
+    // Send Request to Admin
+    const adminMsg = `
+<b>🔔 NEW WITHDRAWAL REQUEST</b>
+━━━━━━━━━━━━━━━━━━
+👤 <b>Name:</b> ${ctx.from.first_name}
+🆔 <b>User ID:</b> <code>${userId}</code>
+📞 <b>Phone:</b> ${user.phone || "Not shared"}
+💰 <b>Amount:</b> <code>${amount} ETB</code>
+🏦 <b>Bank Acc:</b> <code>${user.payout_account}</code>
+━━━━━━━━━━━━━━━━━━`;
+
+    await ctx.telegram.sendMessage(ADMIN_ID, adminMsg, {
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Confirm Paid', `confirm_paid_${userId}_${amount}`)]
+      ])
+    });
+
+    return ctx.reply("✅ <b>Withdrawal Request Sent!</b>\nAdmin will process your payment soon. You will be notified once it is done.", { parse_mode: 'HTML' });
+  }
+
+  // ... Other text handling (start, help, etc) ...
+});
+                                                                                       
 
     // የዌብሁክ ሎጂክ
     if (request.method === 'POST') {
