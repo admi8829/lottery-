@@ -1084,7 +1084,64 @@ function showAmountPad(ctx, currentAmount, acc, bank) {
   return ctx.editMessageText(msg, { parse_mode: 'HTML', ...keyboard });
           }
     
-      
+
+  // ቁጥር ሲጫን
+bot.action(/^amt_num_(\d)$/, async (ctx) => {
+  const num = ctx.match[1];
+  const user = await env.DB.prepare("SELECT amount_input, deposit_method, payout_account FROM users WHERE user_id = ?").bind(ctx.from.id).first();
+  
+  if (user.deposit_method !== 'AMOUNT_PAD') return ctx.answerCbQuery();
+  const newAmt = (user.amount_input || "") + num;
+  
+  await env.DB.prepare("UPDATE users SET amount_input = ? WHERE user_id = ?").bind(newAmt, ctx.from.id).run();
+  return showAmountPad(ctx, newAmt, user.payout_account, user.deposit_method);
+});
+
+// የ 100, 200, 500 አዝራሮች
+bot.action(/^amt_plus_(\d+)$/, async (ctx) => {
+  const plus = ctx.match[1];
+  const user = await env.DB.prepare("SELECT amount_input, payout_account FROM users WHERE user_id = ?").bind(ctx.from.id).first();
+  
+  const current = parseInt(user.amount_input) || 0;
+  const newAmt = (current + parseInt(plus)).toString();
+
+  await env.DB.prepare("UPDATE users SET amount_input = ? WHERE user_id = ?").bind(newAmt, ctx.from.id).run();
+  return showAmountPad(ctx, newAmt, user.payout_account, "CBE"); // ባንኩን ከዳታቤዝ መውሰድ ትችላለህ
+});
+
+// ማጽጃ (Clear)
+bot.action('amt_clear', async (ctx) => {
+  await env.DB.prepare("UPDATE users SET amount_input = '' WHERE user_id = ?").bind(ctx.from.id).run();
+  const user = await env.DB.prepare("SELECT payout_account FROM users WHERE user_id = ?").bind(ctx.from.id).first();
+  return showAmountPad(ctx, "", user.payout_account, "CBE");
+});
+
+ bot.action('amt_done', async (ctx) => {
+  const userId = ctx.from.id;
+  const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
+  const amount = parseInt(user.amount_input);
+
+  if (!amount || amount < 50) {
+    return ctx.answerCbQuery("❌ Minimum withdrawal is 50 ETB!", { show_alert: true });
+  }
+
+  if (amount > user.balance) {
+    return ctx.answerCbQuery("❌ Insufficient Balance!", { show_alert: true });
+  }
+
+  // ለአድሚን መላክ
+  const adminRequest = `<b>🔔 WITHDRAWAL REQUEST</b>\n━━━━━━━━━━━━━━━━━━\n👤 <b>Name:</b> ${ctx.from.first_name}\n🆔 <b>ID:</b> <code>${userId}</code>\n🏦 <b>Details:</b> <code>${user.payout_account}</code>\n💰 <b>Amount:</b> <b>${amount} ETB</b>\n━━━━━━━━━━━━━━━━━━`;
+
+  await ctx.telegram.sendMessage(ADMIN_ID, adminRequest, {
+    parse_mode: 'HTML',
+    ...Markup.inlineKeyboard([[Markup.button.callback('✅ Confirm Paid', `confirm_paid_${userId}_${amount}`)]])
+  });
+
+  await env.DB.prepare("UPDATE users SET deposit_method = NULL, amount_input = '' WHERE user_id = ?").bind(userId).run();
+  
+  return ctx.editMessageText("✅ <b>Withdrawal Request Sent!</b>\n\nYour request has been submitted to the Admin. You will receive a notification once it's processed.", { parse_mode: 'HTML' });
+});
+    
     
 bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
   const targetId = ctx.match[1];
