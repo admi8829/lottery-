@@ -1041,23 +1041,28 @@ bot.action('acc_del', async (ctx) => {
   await env.DB.prepare("UPDATE users SET payout_account = ? WHERE user_id = ?").bind(newAcc, userId).run();
   return showNumberPad(ctx, newAcc, bank);
 });
-
-// --- 6. Number Pad Logic: Finalize Account ---
-/*// በ acc_done መጨረሻ ላይ ይህንን ተካው
+// --- 6. Number Pad Logic: Finalize Account (ይህ ኮድ መከፈት ነበረበት) ---
 bot.action('acc_done', async (ctx) => {
   const userId = ctx.from.id;
-  const user = await env.DB.prepare("SELECT deposit_method, payout_account FROM users WHERE user_id = ?").bind(userId).first();
-  
-  if (!user.payout_account || user.payout_account.length < 8) {
-    return ctx.answerCbQuery("❌ Please enter a valid account number!", { show_alert: true });
-  }
+  try {
+    const user = await env.DB.prepare("SELECT deposit_method, payout_account FROM users WHERE user_id = ?").bind(userId).first();
+    
+    // የአካውንት ቁጥር ርዝመት ቼክ
+    if (!user.payout_account || user.payout_account.length < 8) {
+      return ctx.answerCbQuery("❌ Please enter a valid account number (Min 8 digits)!", { show_alert: true });
+    }
 
-  // ሁኔታውን ወደ AMOUNT_PAD እንቀይር
-  await env.DB.prepare("UPDATE users SET deposit_method = 'AMOUNT_PAD', amount_input = '' WHERE user_id = ?").bind(userId).run();
-  
-  await ctx.answerCbQuery("Account Verified! ✅");
-  return showAmountPad(ctx, "", user.payout_account, user.deposit_method.replace('ACC_PAD_', ''));
-});*/
+    const bankName = user.deposit_method.replace('ACC_PAD_', '');
+
+    // ሁኔታውን ወደ AMOUNT_PAD እንቀይር
+    await env.DB.prepare("UPDATE users SET deposit_method = 'AMOUNT_PAD', amount_input = '0' WHERE user_id = ?").bind(userId).run();
+    
+    await ctx.answerCbQuery("Account Verified! ✅");
+    return showAmountPad(ctx, "0", user.payout_account, bankName);
+  } catch (e) {
+    return ctx.reply("Error: " + e.message);
+  }
+});
 
 // --- Amount Pad ማሳያ Function ---
 function showAmountPad(ctx, currentAmount, acc, bank) {
@@ -1073,7 +1078,6 @@ function showAmountPad(ctx, currentAmount, acc, bank) {
     keys.map(row => row.map(key => {
       if (key === '📤 Submit') return Markup.button.callback(key, 'amt_done');
       if (key === '❌ Clear') return Markup.button.callback(key, 'amt_clear');
-      // ፈጣን አማራጮች (100, 200, 500)
       if (['100', '200', '500'].includes(key)) return Markup.button.callback(`+${key}`, `amt_plus_${key}`);
       return Markup.button.callback(key, `amt_num_${key}`);
     }))
@@ -1081,23 +1085,27 @@ function showAmountPad(ctx, currentAmount, acc, bank) {
 
   const msg = `💰 <b>WITHDRAWAL: STEP 3</b>\n━━━━━━━━━━━━━━━━━━\n🏦 <b>Bank:</b> ${bank}\n💳 <b>Account:</b> <code>${acc}</code>\n━━━━━━━━━━━━━━━━━━\n💵 <b>ENTER AMOUNT:</b>\n<pre>${currentAmount || '0'} ETB</pre>\n━━━━━━━━━━━━━━━━━━\n<i>Select quick amounts or type your own. (Min: 50 ETB)</i>`;
   
-  return ctx.editMessageText(msg, { parse_mode: 'HTML', ...keyboard });
-          }
-    
+  if (ctx.callbackQuery) {
+    return ctx.editMessageText(msg, { parse_mode: 'HTML', ...keyboard });
+  }
+  return ctx.reply(msg, { parse_mode: 'HTML', ...keyboard });
+}
 
-  // ቁጥር ሲጫን
+// --- Amount Pad Logic ---
+
 bot.action(/^amt_num_(\d)$/, async (ctx) => {
   const num = ctx.match[1];
   const user = await env.DB.prepare("SELECT amount_input, deposit_method, payout_account FROM users WHERE user_id = ?").bind(ctx.from.id).first();
   
   if (user.deposit_method !== 'AMOUNT_PAD') return ctx.answerCbQuery();
-  const newAmt = (user.amount_input || "") + num;
+  
+  // መጀመሪያ 0 ካለ እሱን ማስወገድ
+  let newAmt = (user.amount_input === '0' ? "" : user.amount_input || "") + num;
   
   await env.DB.prepare("UPDATE users SET amount_input = ? WHERE user_id = ?").bind(newAmt, ctx.from.id).run();
-  return showAmountPad(ctx, newAmt, user.payout_account, user.deposit_method);
+  return showAmountPad(ctx, newAmt, user.payout_account, "Withdrawal");
 });
 
-// የ 100, 200, 500 አዝራሮች
 bot.action(/^amt_plus_(\d+)$/, async (ctx) => {
   const plus = ctx.match[1];
   const user = await env.DB.prepare("SELECT amount_input, payout_account FROM users WHERE user_id = ?").bind(ctx.from.id).first();
@@ -1106,41 +1114,45 @@ bot.action(/^amt_plus_(\d+)$/, async (ctx) => {
   const newAmt = (current + parseInt(plus)).toString();
 
   await env.DB.prepare("UPDATE users SET amount_input = ? WHERE user_id = ?").bind(newAmt, ctx.from.id).run();
-  return showAmountPad(ctx, newAmt, user.payout_account, "CBE"); // ባንኩን ከዳታቤዝ መውሰድ ትችላለህ
+  return showAmountPad(ctx, newAmt, user.payout_account, "Withdrawal");
 });
 
-// ማጽጃ (Clear)
 bot.action('amt_clear', async (ctx) => {
-  await env.DB.prepare("UPDATE users SET amount_input = '' WHERE user_id = ?").bind(ctx.from.id).run();
+  await env.DB.prepare("UPDATE users SET amount_input = '0' WHERE user_id = ?").bind(ctx.from.id).run();
   const user = await env.DB.prepare("SELECT payout_account FROM users WHERE user_id = ?").bind(ctx.from.id).first();
-  return showAmountPad(ctx, "", user.payout_account, "CBE");
+  return showAmountPad(ctx, "0", user.payout_account, "Withdrawal");
 });
 
- bot.action('amt_done', async (ctx) => {
+bot.action('amt_done', async (ctx) => {
   const userId = ctx.from.id;
-  const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
-  const amount = parseInt(user.amount_input);
+  try {
+    const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
+    const amount = parseInt(user.amount_input);
 
-  if (!amount || amount < 50) {
-    return ctx.answerCbQuery("❌ Minimum withdrawal is 50 ETB!", { show_alert: true });
+    if (!amount || amount < 50) {
+      return ctx.answerCbQuery("❌ Minimum withdrawal is 50 ETB!", { show_alert: true });
+    }
+
+    if (amount > user.balance) {
+      return ctx.answerCbQuery("❌ Insufficient Balance!", { show_alert: true });
+    }
+
+    // ለአድሚን መላክ
+    const adminRequest = `<b>🔔 WITHDRAWAL REQUEST</b>\n━━━━━━━━━━━━━━━━━━\n👤 <b>Name:</b> ${ctx.from.first_name}\n🆔 <b>ID:</b> <code>${userId}</code>\n🏦 <b>Details:</b> <code>${user.payout_account}</code>\n💰 <b>Amount:</b> <b>${amount} ETB</b>\n━━━━━━━━━━━━━━━━━━`;
+
+    await ctx.telegram.sendMessage(ADMIN_ID, adminRequest, {
+      parse_mode: 'HTML',
+      ...Markup.inlineKeyboard([[Markup.button.callback('✅ Confirm Paid', `confirm_paid_${userId}_${amount}`)]])
+    });
+
+    await env.DB.prepare("UPDATE users SET deposit_method = NULL, amount_input = '' WHERE user_id = ?").bind(userId).run();
+    
+    return ctx.editMessageText("✅ <b>Withdrawal Request Sent!</b>\n\nYour request has been submitted to the Admin. You will receive a notification once it's processed.", { parse_mode: 'HTML' });
+  } catch (e) {
+    return ctx.reply("Error: " + e.message);
   }
-
-  if (amount > user.balance) {
-    return ctx.answerCbQuery("❌ Insufficient Balance!", { show_alert: true });
-  }
-
-  // ለአድሚን መላክ
-  const adminRequest = `<b>🔔 WITHDRAWAL REQUEST</b>\n━━━━━━━━━━━━━━━━━━\n👤 <b>Name:</b> ${ctx.from.first_name}\n🆔 <b>ID:</b> <code>${userId}</code>\n🏦 <b>Details:</b> <code>${user.payout_account}</code>\n💰 <b>Amount:</b> <b>${amount} ETB</b>\n━━━━━━━━━━━━━━━━━━`;
-
-  await ctx.telegram.sendMessage(ADMIN_ID, adminRequest, {
-    parse_mode: 'HTML',
-    ...Markup.inlineKeyboard([[Markup.button.callback('✅ Confirm Paid', `confirm_paid_${userId}_${amount}`)]])
-  });
-
-  await env.DB.prepare("UPDATE users SET deposit_method = NULL, amount_input = '' WHERE user_id = ?").bind(userId).run();
-  
-  return ctx.editMessageText("✅ <b>Withdrawal Request Sent!</b>\n\nYour request has been submitted to the Admin. You will receive a notification once it's processed.", { parse_mode: 'HTML' });
 });
+    
     
     
 bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
