@@ -949,7 +949,7 @@ bot.hears('💰 Wallet & Invite', async (ctx) => {
   }
 });
 
-    bot.action('request_withdraw', async (ctx) => {
+bot.action('request_withdraw', async (ctx) => {
   const userId = ctx.from.id;
   const MIN_WITHDRAW = 50;
 
@@ -961,16 +961,40 @@ bot.hears('💰 Wallet & Invite', async (ctx) => {
       return ctx.reply(`⚠️ <b>Insufficient Balance!</b>\nYou need at least <b>${MIN_WITHDRAW} ETB</b>. Your current balance is <b>${user?.balance || 0} ETB</b>.`, { parse_mode: 'HTML' });
     }
 
+    // የባንክ ምርጫ ቁልፎች (Buttons)
+    const bankKeyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('🔸 Telebirr', 'sel_bank_Telebirr'), Markup.button.callback('🔹 CBE', 'sel_bank_CBE')],
+      [Markup.button.callback('🔸 M-Pesa', 'sel_bank_M-Pesa')]
+    ]);
+
     await ctx.answerCbQuery();
-    return ctx.reply("🏦 <b>STEP 1: PAYMENT DETAILS</b>\n\nPlease type your <b>Bank Name</b> and <b>Account Number</b> where you want to receive the money.\n\n<i>Example: CBE - 1000123456789</i>", { parse_mode: 'HTML' });
+    return ctx.reply("🏦 <b>STEP 1: SELECT BANK</b>\n\nPlease select the payment method you want to use:", { 
+      parse_mode: 'HTML', 
+      ...bankKeyboard 
+    });
   } catch (e) {
     return ctx.answerCbQuery("Error: " + e.message);
   }
 });
 
-    
+// 2. ባንክ ሲመረጥ የሚሰራ (Bank Selection Handler)
+bot.action(/^sel_bank_(.+)$/, async (ctx) => {
+  const bankName = ctx.match[1];
+  const userId = ctx.from.id;
 
-    bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
+  try {
+    // የተጠቃሚውን ሁኔታ ወደ WAITING_ACC_ባንክ ስም መቀየር
+    await env.DB.prepare("UPDATE users SET deposit_method = ? WHERE user_id = ?")
+      .bind(`WAITING_ACC_${bankName}`, userId).run();
+
+    await ctx.answerCbQuery();
+    return ctx.editMessageText(`🏦 <b>${bankName} Selected</b>\n\n<b>STEP 2: ACCOUNT DETAILS</b>\nPlease type your <b>Account Number</b> and <b>Full Name</b>:`, { parse_mode: 'HTML' });
+  } catch (e) {
+    return ctx.reply("Error: " + e.message);
+  }
+});
+    
+bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
   const targetId = ctx.match[1];
   const amount = ctx.match[2];
 
