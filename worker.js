@@ -1183,60 +1183,55 @@ bot.on('text', async (ctx) => {
   const text = ctx.message.text;
   const userId = ctx.from.id;
 
-  // --- A. Handling Bank Details (Triggered if text contains a dash '-') ---
-  if (text.includes('-') && text.length > 8) {
-    await env.DB.prepare("UPDATE users SET payout_account = ? WHERE user_id = ?")
-      .bind(text, userId)
-      .run();
-    
-    const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(userId).first();
-    
-    const successMsg = `
-✅ <b>Payment Method Saved!</b>
-━━━━━━━━━━━━━━━━━━
-🏦 <b>Bank:</b> <code>${text}</code>
-💰 <b>Balance:</b> <code>${user.balance} ETB</code>
-━━━━━━━━━━━━━━━━━━
-Now, please type the <b>Amount</b> you wish to withdraw:`;
+  // 1. የተጠቃሚውን ዳታ መጀመሪያ እናምጣ
+  const user = await env.DB.prepare("SELECT balance, deposit_method, payout_account FROM users WHERE user_id = ?").bind(userId).first();
+  if (!user) return;
 
-    return ctx.reply(successMsg, { parse_mode: 'HTML' });
+  // --- A. ለአድሚን ብቻ፡ Custom Amount መጨመሪያ (add userId amount) ---
+  if (userId === ADMIN_ID && text.startsWith('add ')) {
+    const parts = text.split(' ');
+    if (parts.length === 3) {
+      const targetId = parts[1];
+      const amount = parseInt(parts[2]);
+      if (!isNaN(amount)) {
+        await env.DB.prepare("UPDATE users SET balance = balance + ? WHERE user_id = ?").bind(amount, targetId).run();
+        await ctx.telegram.sendMessage(targetId, `✅ <b>Deposit Approved!</b>\nYour wallet has been credited with <b>${amount} ETB</b>.`, { parse_mode: 'HTML' });
+        return ctx.reply(`✅ Successfully added ${amount} ETB to User ${targetId}`);
+      }
+    }
   }
 
-  // --- B. Handling Withdrawal Amount (Triggered if text is a number) ---
-  if (!isNaN(text) && parseInt(text) >= 50) {
+  // --- B. የባንክ መረጃ መቀበያ (WAITING_FOR_BANK ሲሆን ብቻ) ---
+  if (user.deposit_method === 'WAITING_FOR_BANK') {
+    if (text.includes('-') && text.length > 8) {
+      await env.DB.prepare("UPDATE users SET payout_account = ?, deposit_method = 'WAITING_FOR_WITHDRAW' WHERE user_id = ?").bind(text, userId).run();
+      return ctx.reply(`✅ <b>Bank Info Saved!</b>\n🏦 <b>Bank:</b> <code>${text}</code>\n\nNow, type the <b>Amount</b> you wish to withdraw:`, { parse_mode: 'HTML' });
+    } else {
+      return ctx.reply("❌ Invalid format. Please use: <i>Bank - AccountNumber</i>", { parse_mode: 'HTML' });
+    }
+  }
+
+  // --- C. ገንዘብ ማውጫ መጠን መቀበያ (WAITING_FOR_WITHDRAW ሲሆን ብቻ) ---
+  if (user.deposit_method === 'WAITING_FOR_WITHDRAW') {
     const amount = parseInt(text);
-    const user = await env.DB.prepare("SELECT balance, payout_account, phone FROM users WHERE user_id = ?").bind(userId).first();
+    if (!isNaN(amount) && amount >= 50) {
+      if (amount > user.balance) {
+        return ctx.reply(`❌ <b>Insufficient Funds!</b>\nYour balance: <b>${user.balance} ETB</b>.`, { parse_mode: 'HTML' });
+      }
 
-    if (!user.payout_account) {
-       return ctx.reply("❌ <b>Missing Bank Info!</b>\nPlease provide your Bank Details first.\nExample: <i>CBE - 1000123456789</i>", { parse_mode: 'HTML' });
+      // ለአድሚን ጥያቄ መላክ
+      await ctx.telegram.sendMessage(ADMIN_ID, `<b>🔔 WITHDRAWAL REQUEST</b>\nID: <code>${userId}</code>\nAmount: <code>${amount} ETB</code>\nBank: <code>${user.payout_account}</code>`, {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([[Markup.button.callback('✅ Confirm Paid', `confirm_paid_${userId}_${amount}`)]])
+      });
+
+      // ሁኔታውን (State) መዝጋት
+      await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(userId).run();
+      return ctx.reply("✅ Request Sent! Admin will process it soon.", { parse_mode: 'HTML' });
+    } else {
+      return ctx.reply("❌ Minimum withdrawal is 50 ETB. Please enter a valid number.");
     }
-
-    if (amount > user.balance) {
-      return ctx.reply(`❌ <b>Insufficient Funds!</b>\nYour current balance is <b>${user.balance} ETB</b>. Please enter a lower amount.`, { parse_mode: 'HTML' });
-    }
-
-    // Notify Admin of Withdrawal Request
-    const adminWithdrawMsg = `
-<b>🔔 NEW WITHDRAWAL REQUEST</b>
-━━━━━━━━━━━━━━━━━━
-👤 <b>Name:</b> ${ctx.from.first_name}
-🆔 <b>User ID:</b> <code>${userId}</code>
-📞 <b>Phone:</b> <code>${user.phone || "Not Shared"}</code>
-💰 <b>Amount:</b> <code>${amount} ETB</code>
-🏦 <b>Bank Acc:</b> <code>${user.payout_account}</code>
-━━━━━━━━━━━━━━━━━━`;
-
-    await ctx.telegram.sendMessage(ADMIN_ID, adminWithdrawMsg, {
-      parse_mode: 'HTML',
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback('✅ Confirm Paid', `confirm_paid_${userId}_${amount}`)]
-      ])
-    });
-
-    return ctx.reply("✅ <b>Request Sent Successfully!</b>\nAdmin will review your request and send the payment soon.", { parse_mode: 'HTML' });
   }
-
-  // ... [Other text handlers like /start or Help can go here] ...
 });
     
 
