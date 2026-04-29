@@ -1043,7 +1043,7 @@ bot.action('acc_del', async (ctx) => {
 });
 
 // --- 6. Number Pad Logic: Finalize Account ---
-// በ acc_done መጨረሻ ላይ ይህንን ተካው
+/*// በ acc_done መጨረሻ ላይ ይህንን ተካው
 bot.action('acc_done', async (ctx) => {
   const userId = ctx.from.id;
   const user = await env.DB.prepare("SELECT deposit_method, payout_account FROM users WHERE user_id = ?").bind(userId).first();
@@ -1057,7 +1057,7 @@ bot.action('acc_done', async (ctx) => {
   
   await ctx.answerCbQuery("Account Verified! ✅");
   return showAmountPad(ctx, "", user.payout_account, user.deposit_method.replace('ACC_PAD_', ''));
-});
+});*/
 
 // --- Amount Pad ማሳያ Function ---
 function showAmountPad(ctx, currentAmount, acc, bank) {
