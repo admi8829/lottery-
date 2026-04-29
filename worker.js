@@ -1043,6 +1043,7 @@ bot.action('acc_del', async (ctx) => {
 });
 
 // --- 6. Number Pad Logic: Finalize Account ---
+// በ acc_done መጨረሻ ላይ ይህንን ተካው
 bot.action('acc_done', async (ctx) => {
   const userId = ctx.from.id;
   const user = await env.DB.prepare("SELECT deposit_method, payout_account FROM users WHERE user_id = ?").bind(userId).first();
@@ -1051,13 +1052,38 @@ bot.action('acc_done', async (ctx) => {
     return ctx.answerCbQuery("❌ Please enter a valid account number!", { show_alert: true });
   }
 
-  await env.DB.prepare("UPDATE users SET deposit_method = 'WAITING_AMOUNT' WHERE user_id = ?").bind(userId).run();
+  // ሁኔታውን ወደ AMOUNT_PAD እንቀይር
+  await env.DB.prepare("UPDATE users SET deposit_method = 'AMOUNT_PAD', amount_input = '' WHERE user_id = ?").bind(userId).run();
   
-  await ctx.answerCbQuery("Account Saved! ✅");
-  const finalMsg = `✅ <b>ACCOUNT VERIFIED</b>\n━━━━━━━━━━━━━━━━━━\n🏦 <b>Bank:</b> ${user.deposit_method.replace('ACC_PAD_', '')}\n💳 <b>Account:</b> <code>${user.payout_account}</code>\n━━━━━━━━━━━━━━━━━━\n💰 <b>STEP 3:</b> Please type the <b>Amount</b> you wish to withdraw:`;
-  
-  return ctx.editMessageText(finalMsg, { parse_mode: 'HTML' });
+  await ctx.answerCbQuery("Account Verified! ✅");
+  return showAmountPad(ctx, "", user.payout_account, user.deposit_method.replace('ACC_PAD_', ''));
 });
+
+// --- Amount Pad ማሳያ Function ---
+function showAmountPad(ctx, currentAmount, acc, bank) {
+  const keys = [
+    ['100', '200', '500'],
+    ['1', '2', '3'],
+    ['4', '5', '6'],
+    ['7', '8', '9'],
+    ['❌ Clear', '0', '📤 Submit']
+  ];
+
+  const keyboard = Markup.inlineKeyboard(
+    keys.map(row => row.map(key => {
+      if (key === '📤 Submit') return Markup.button.callback(key, 'amt_done');
+      if (key === '❌ Clear') return Markup.button.callback(key, 'amt_clear');
+      // ፈጣን አማራጮች (100, 200, 500)
+      if (['100', '200', '500'].includes(key)) return Markup.button.callback(`+${key}`, `amt_plus_${key}`);
+      return Markup.button.callback(key, `amt_num_${key}`);
+    }))
+  );
+
+  const msg = `💰 <b>WITHDRAWAL: STEP 3</b>\n━━━━━━━━━━━━━━━━━━\n🏦 <b>Bank:</b> ${bank}\n💳 <b>Account:</b> <code>${acc}</code>\n━━━━━━━━━━━━━━━━━━\n💵 <b>ENTER AMOUNT:</b>\n<pre>${currentAmount || '0'} ETB</pre>\n━━━━━━━━━━━━━━━━━━\n<i>Select quick amounts or type your own. (Min: 50 ETB)</i>`;
+  
+  return ctx.editMessageText(msg, { parse_mode: 'HTML', ...keyboard });
+          }
+    
       
     
 bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
