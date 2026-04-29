@@ -1154,24 +1154,18 @@ bot.action('amt_done', async (ctx) => {
 });
     
     
-    
 bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
   const targetId = ctx.match[1];
   const amount = ctx.match[2];
 
-  try {
-    // ባላንሱን ወደ 0 መቀየር
-    await env.DB.prepare("UPDATE users SET balance = 0 WHERE user_id = ?").bind(targetId).run();
+  // አድሚኑ አሁን ለዚህ ተጠቃሚ ፎቶ እንዲልክ ሁኔታውን (State) እናስቀምጥ
+  await env.DB.prepare("UPDATE users SET deposit_method = ? WHERE user_id = ?")
+    .bind(`ADMIN_WAITING_PROOF_${targetId}_${amount}`, ADMIN_ID).run();
 
-    // ለተጠቃሚው ማሳወቅ
-    await ctx.telegram.sendMessage(targetId, `🎊 <b>Payment Successful!</b>\nYour withdrawal of <b>${amount} ETB</b> has been processed. Check your bank account.`, { parse_mode: 'HTML' });
-
-    await ctx.editMessageText(`✅ <b>COMPLETED:</b> ${amount} ETB paid to ${targetId}`);
-    return ctx.answerCbQuery("Success!");
-  } catch (e) {
-    return ctx.reply("Error: " + e.message);
-  }
+  await ctx.answerCbQuery();
+  return ctx.reply(`📸 <b>Admin: Upload Payment Receipt</b>\n━━━━━━━━━━━━━━━━━━\nPlease send the screenshot for <b>User ${targetId}</b> (${amount} ETB).\n\n<i>The user will receive this photo as a confirmation.</i>`, { parse_mode: 'HTML' });
 });
+    
     
 
 bot.action('view_my_tickets', async (ctx) => {
