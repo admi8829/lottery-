@@ -1399,33 +1399,38 @@ bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
   const targetId = ctx.match[1];
   const amount = ctx.match[2];
 
-  // አድሚኑ ፎቶ እንዲልክ 'ADMIN_WAITING_PROOF' በሚል ሁኔታ ውስጥ እናስገባው
+  // አድሚኑ ፎቶ እንዲልክ ሁኔታውን እናስቀምጥ
   await env.DB.prepare("UPDATE users SET deposit_method = ? WHERE user_id = ?")
     .bind(`ADMIN_WAITING_PROOF_${targetId}_${amount}`, ADMIN_ID).run();
 
   await ctx.answerCbQuery();
-  return ctx.reply(`📸 <b>ADMIN: PAYMENT PROOF REQUIRED</b>\n━━━━━━━━━━━━━━━━━━\nPlease upload the <b>Payment Screenshot</b> for User <code>${targetId}</code>.\nAmount: <b>${amount} ETB</b>\n\n<i>The user will only be notified after the photo is sent.</i>`, { parse_mode: 'HTML' });
+  
+  // ForceReply በመጠቀም አድሚኑ መላክ እንዲችል እናደርጋለን
+  return ctx.reply(`📸 <b>Admin: Upload Payment Receipt</b>\n━━━━━━━━━━━━━━━━━━\nPlease send the screenshot for <b>User ${targetId}</b> (${amount} ETB).\n\n<i>The user will receive this photo as a confirmation.</i>`, { 
+    parse_mode: 'HTML',
+    ...Markup.forceReply() 
+  });
 });
+    
 
 // --- ፎቶ መቀበያ (ለዲፖዚት እና ለአድሚን ማረጋገጫ) ---
 bot.on('photo', async (ctx) => {
   const userId = ctx.from.id;
   const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
   
-  // 1. የተጠቃሚውን ዳታ ከመረጃ ቋቱ እናምጣ
-  const user = await env.DB.prepare("SELECT deposit_method FROM users WHERE user_id = ?").bind(userId).first();
-  if (!user || !user.deposit_method) return;
+  // የአድሚኑን ዳታ እንፈትሽ
+  const adminState = await env.DB.prepare("SELECT deposit_method FROM users WHERE user_id = ?").bind(userId).first();
 
-  // --- ሀ. ለአድሚን፡ የዊዝድሮው ማረጋገጫ (Proof) ሲልክ ---
-  if (userId === ADMIN_ID && user.deposit_method.startsWith('ADMIN_WAITING_PROOF_')) {
-    const parts = user.deposit_method.split('_');
-    const targetUserId = parts[3]; // የተጠቃሚው ID
-    const amount = parts[4];       // የገንዘብ መጠኑ
+  // --- ሀ. አድሚኑ ለዊዝድሮው ማረጋገጫ ፎቶ ሲልክ ---
+  if (userId === ADMIN_ID && adminState && adminState.deposit_method && adminState.deposit_method.startsWith('ADMIN_WAITING_PROOF_')) {
+    const parts = adminState.deposit_method.split('_');
+    const targetUserId = parts[3];
+    const amount = parts[4];
 
     try {
-      // 1. ለተጠቃሚው ፎቶውን ከማረጋገጫ ጽሑፍ ጋር መላክ
+      // 1. ለተጠቃሚው ፎቶውን መላክ
       await ctx.telegram.sendPhoto(targetUserId, photoId, {
-        caption: `✅ <b>WITHDRAWAL CONFIRMED!</b>\n━━━━━━━━━━━━━━━━━━\nYour withdrawal request for <b>${amount} ETB</b> has been successfully processed.\n\n📸 <i>Attached above is your payment receipt.</i>\n━━━━━━━━━━━━━━━━━━\n🙏 Thank you for using <b>Smart X Academy</b>!`,
+        caption: `✅ <b>Withdrawal Successful!</b>\n━━━━━━━━━━━━━━━━━━\nYour withdrawal request of <b>${amount} ETB</b> has been completed.\n\n<i>Thank you for choosing Smart X Academy!</i>`,
         parse_mode: 'HTML'
       });
 
@@ -1436,14 +1441,23 @@ bot.on('photo', async (ctx) => {
       // 3. የአድሚኑን ሁኔታ (State) ማጽዳት
       await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(ADMIN_ID).run();
 
-      // ለአድሚኑ ማረጋገጫ መስጠት
-      return ctx.reply(`🚀 <b>Payment Sent!</b>\n━━━━━━━━━━━━━━━━━━\nReceipt successfully sent to User: <code>${targetUserId}</code>\nBalance deducted: <b>${amount} ETB</b>`, { parse_mode: 'HTML' });
-
+      return ctx.reply(`✅ <b>Success!</b>\nReceipt sent to User <code>${targetUserId}</code> and balance updated.`);
     } catch (e) {
-      console.error("Error sending proof:", e);
-      return ctx.reply("❌ <b>Error:</b> Could not send proof to the user. Make sure they haven't blocked the bot.");
+      return ctx.reply("❌ Error: " + e.message);
     }
   }
+
+  // --- ለ. ተጠቃሚው ለዲፖዚት (Deposit) ፎቶ ሲልክ ---
+  if (adminState && adminState.deposit_method === 'WAITING_DEPOSIT_PHOTO') {
+    await ctx.telegram.sendPhoto(ADMIN_ID, photoId, {
+      caption: `<b>💰 NEW DEPOSIT PROOF</b>\n👤 User: ${ctx.from.first_name}\n🆔 ID: <code>${userId}</code>`,
+      parse_mode: 'HTML'
+    });
+    await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(userId).run();
+    return ctx.reply("✅ <b>Deposit Screenshot Sent!</b>\nAdmin will verify it soon.");
+  }
+});
+    
 
   // --- ለ. ለተጠቃሚ፡ የዲፖዚት (Deposit) ፎቶ ሲልክ ---
   if (user.deposit_method === 'WAITING_DEPOSIT_PHOTO') {
