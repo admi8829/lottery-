@@ -949,94 +949,116 @@ bot.hears('💰 Wallet & Invite', async (ctx) => {
   }
 });
 
+// --- 1. Withdrawal Start: Bank Selection ---
 bot.action('request_withdraw', async (ctx) => {
   const userId = ctx.from.id;
-  const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(userId).first();
+  try {
+    const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(userId).first();
 
-  if (!user || user.balance < 50) {
-    return ctx.reply("⚠️ <b>Insufficient Balance!</b>\nYou need at least 50 ETB to withdraw.", { parse_mode: 'HTML' });
+    if (!user || user.balance < 50) {
+      return ctx.reply("⚠️ <b>Insufficient Balance!</b>\n\nYou need at least <b>50 ETB</b> to request a withdrawal.\nYour current balance: <b>" + (user?.balance || 0) + " ETB</b>", { parse_mode: 'HTML' });
+    }
+
+    const bankKeyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('📱 Telebirr', 'set_b_Telebirr'), Markup.button.callback('🏦 CBE', 'set_b_CBE')],
+      [Markup.button.callback('💸 M-Pesa', 'set_b_M-Pesa')]
+    ]);
+
+    return ctx.reply("🏦 <b>WITHDRAWAL: STEP 1</b>\n\nPlease select your preferred <b>Bank or Wallet</b> below:", { 
+      parse_mode: 'HTML', 
+      ...bankKeyboard 
+    });
+  } catch (e) {
+    return ctx.reply("Error: " + e.message);
   }
-
-  const bankKeyboard = Markup.inlineKeyboard([
-    [Markup.button.callback('🔸 Telebirr', 'set_b_Telebirr'), Markup.button.callback('🔹 CBE', 'set_b_CBE')],
-    [Markup.button.callback('🔸 M-Pesa', 'set_b_M-Pesa')]
-  ]);
-
-  return ctx.reply("🏦 <b>Select your Bank:</b>", { parse_mode: 'HTML', ...bankKeyboard });
 });
 
-// ባንክ ሲመረጥ የቁጥር ቁልፎችን ያሳያል
+// --- 2. Bank Selected: Initialize Number Pad ---
 bot.action(/^set_b_(.+)$/, async (ctx) => {
   const bank = ctx.match[1];
-  await env.DB.prepare("UPDATE users SET deposit_method = ?, payout_account = '' WHERE user_id = ?")
-    .bind(`ACC_PAD_${bank}`, ctx.from.id).run();
+  const userId = ctx.from.id;
   
+  await env.DB.prepare("UPDATE users SET deposit_method = ?, payout_account = '' WHERE user_id = ?")
+    .bind(`ACC_PAD_${bank}`, userId).run();
+  
+  await ctx.answerCbQuery(`${bank} Selected!`);
   return showNumberPad(ctx, "", bank);
 });
 
-// የቁጥር ቁልፎችን የሚሰራ ፈንክሽን
+// --- 3. The Reusable Number Pad Function ---
 function showNumberPad(ctx, currentAcc, bank) {
   const keys = [
     ['1', '2', '3'],
     ['4', '5', '6'],
     ['7', '8', '9'],
-    ['⬅️ Del', '0', '✅ Done']
+    ['❌ Clear', '0', '✅ Done']
   ];
 
   const keyboard = Markup.inlineKeyboard(
     keys.map(row => row.map(key => {
       if (key === '✅ Done') return Markup.button.callback(key, 'acc_done');
-      if (key === '⬅️ Del') return Markup.button.callback(key, 'acc_del');
+      if (key === '❌ Clear') return Markup.button.callback(key, 'acc_del');
       return Markup.button.callback(key, `num_${key}`);
     }))
   );
 
-  const msg = `🏦 <b>Bank:</b> ${bank}\n✍️ <b>Enter Account:</b> <code>${currentAcc || '_________'}</code>`;
+  const msg = `🏦 <b>BANK:</b> ${bank}\n━━━━━━━━━━━━━━━━━━\n✍️ <b>ENTER ACCOUNT NUMBER:</b>\n<code>${currentAcc || '_________________'}</code>\n━━━━━━━━━━━━━━━━━━\n<i>Use the buttons below to type your account number accurately.</i>`;
   
   if (ctx.callbackQuery) {
     return ctx.editMessageText(msg, { parse_mode: 'HTML', ...keyboard });
   }
   return ctx.reply(msg, { parse_mode: 'HTML', ...keyboard });
-    }
+}
 
-
-  // ቁጥሮች ሲነኩ
+// --- 4. Number Pad Logic: Digit Press ---
 bot.action(/^num_(\d)$/, async (ctx) => {
   const num = ctx.match[1];
-  const user = await env.DB.prepare("SELECT deposit_method, payout_account FROM users WHERE user_id = ?").bind(ctx.from.id).first();
+  const userId = ctx.from.id;
   
-  if (!user.deposit_method.startsWith('ACC_PAD_')) return;
+  const user = await env.DB.prepare("SELECT deposit_method, payout_account FROM users WHERE user_id = ?").bind(userId).first();
+  if (!user.deposit_method || !user.deposit_method.startsWith('ACC_PAD_')) return ctx.answerCbQuery();
   
   const newAcc = (user.payout_account || "") + num;
   const bank = user.deposit_method.replace('ACC_PAD_', '');
 
-  await env.DB.prepare("UPDATE users SET payout_account = ? WHERE user_id = ?").bind(newAcc, ctx.from.id).run();
+  // አካውንት ቁጥር ከ 20 ዲጂት እንዳይበልጥ መገደብ ይቻላል
+  if (newAcc.length > 20) return ctx.answerCbQuery("Too long!");
+
+  await env.DB.prepare("UPDATE users SET payout_account = ? WHERE user_id = ?").bind(newAcc, userId).run();
   return showNumberPad(ctx, newAcc, bank);
 });
 
-// መሰረዝ ሲፈልግ (Delete)
+// --- 5. Number Pad Logic: Clear/Delete ---
 bot.action('acc_del', async (ctx) => {
-  const user = await env.DB.prepare("SELECT deposit_method, payout_account FROM users WHERE user_id = ?").bind(ctx.from.id).first();
+  const userId = ctx.from.id;
+  const user = await env.DB.prepare("SELECT deposit_method, payout_account FROM users WHERE user_id = ?").bind(userId).first();
+  
+  if (!user.payout_account) return ctx.answerCbQuery("Already empty!");
+  
   const newAcc = user.payout_account.slice(0, -1);
   const bank = user.deposit_method.replace('ACC_PAD_', '');
   
-  await env.DB.prepare("UPDATE users SET payout_account = ? WHERE user_id = ?").bind(newAcc, ctx.from.id).run();
+  await env.DB.prepare("UPDATE users SET payout_account = ? WHERE user_id = ?").bind(newAcc, userId).run();
   return showNumberPad(ctx, newAcc, bank);
 });
 
-// ሲጨርስ (Done) - ወደ ቀጣዩ ደረጃ (የብር መጠን) ይወስደዋል
+// --- 6. Number Pad Logic: Finalize Account ---
 bot.action('acc_done', async (ctx) => {
-  const user = await env.DB.prepare("SELECT deposit_method, payout_account FROM users WHERE user_id = ?").bind(ctx.from.id).first();
+  const userId = ctx.from.id;
+  const user = await env.DB.prepare("SELECT deposit_method, payout_account FROM users WHERE user_id = ?").bind(userId).first();
   
-  if (!user.payout_account || user.payout_account.length < 5) {
+  if (!user.payout_account || user.payout_account.length < 8) {
     return ctx.answerCbQuery("❌ Please enter a valid account number!", { show_alert: true });
   }
 
-  await env.DB.prepare("UPDATE users SET deposit_method = 'WAITING_AMOUNT' WHERE user_id = ?").bind(ctx.from.id).run();
-  await ctx.answerCbQuery();
-  return ctx.editMessageText(`✅ <b>Account Saved:</b> <code>${user.payout_account}</code>\n\n💰 Now, type the <b>Amount</b> you wish to withdraw:`, { parse_mode: 'HTML' });
+  await env.DB.prepare("UPDATE users SET deposit_method = 'WAITING_AMOUNT' WHERE user_id = ?").bind(userId).run();
+  
+  await ctx.answerCbQuery("Account Saved! ✅");
+  const finalMsg = `✅ <b>ACCOUNT VERIFIED</b>\n━━━━━━━━━━━━━━━━━━\n🏦 <b>Bank:</b> ${user.deposit_method.replace('ACC_PAD_', '')}\n💳 <b>Account:</b> <code>${user.payout_account}</code>\n━━━━━━━━━━━━━━━━━━\n💰 <b>STEP 3:</b> Please type the <b>Amount</b> you wish to withdraw:`;
+  
+  return ctx.editMessageText(finalMsg, { parse_mode: 'HTML' });
 });
-    
+      
     
 bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
   const targetId = ctx.match[1];
