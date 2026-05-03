@@ -1401,29 +1401,6 @@ bot.on('text', async (ctx) => {
     return;
   }
 
-  /* ማሳሰቢያ፡ አሁን ባለው አሰራር Withdrawal እና Account Number በ Button (Number Pad) 
-     ስለሚሰሩ፣ እዚህ ጋር ለተጠቃሚው ምንም አይነት የጽሑፍ መቀበያ ሎጂክ አያስፈልግም።
-     ተጠቃሚው በስህተት ጽሑፍ ቢልክ ቦቱ ዝም ይላል።
-  */
-});
-
-// --- አድሚኑ Confirm Paid ሲጫን የሚሰራው ---
-bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
-  const targetId = ctx.match[1];
-  const amount = ctx.match[2];
-
-  // አድሚኑ ፎቶ እንዲልክ ሁኔታውን እናስቀምጥ
-  await env.DB.prepare("UPDATE users SET deposit_method = ? WHERE user_id = ?")
-    .bind(`ADMIN_WAITING_PROOF_${targetId}_${amount}`, ADMIN_ID).run();
-
-  await ctx.answerCbQuery();
-  
-  // ForceReply በመጠቀም አድሚኑ መላክ እንዲችል እናደርጋለን
-  return ctx.reply(`📸 <b>Admin: Upload Payment Receipt</b>\n━━━━━━━━━━━━━━━━━━\nPlease send the screenshot for <b>User ${targetId}</b> (${amount} ETB).\n\n<i>The user will receive this photo as a confirmation.</i>`, { 
-    parse_mode: 'HTML',
-    ...Markup.forceReply() 
-  });
-});
     
 
 // --- ፎቶ መቀበያ (ለዲፖዚት እና ለአድሚን ማረጋገጫ) ---
