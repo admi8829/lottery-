@@ -1138,32 +1138,45 @@ bot.action('amt_done', async (ctx) => {
     }
 
     // ለአድሚን መላክ
-    const adminRequest = `<b>🔔 WITHDRAWAL REQUEST</b>\n━━━━━━━━━━━━━━━━━━\n👤 <b>Name:</b> ${ctx.from.first_name}\n🆔 <b>ID:</b> <code>${userId}</code>\n🏦 <b>Details:</b> <code>${user.payout_account}</code>\n💰 <b>Amount:</b> <b>${amount} ETB</b>\n━━━━━━━━━━━━━━━━━━`;
+    // በ 'amt_done' ውስጥ የሚገኝ ቁልፍ ማስተካከያ
+const adminRequest = `<b>🔔 WITHDRAWAL REQUEST</b>\n━━━━━━━━━━━━━━━━━━\n👤 <b>Name:</b> ${ctx.from.first_name}\n🆔 <b>ID:</b> <code>${userId}</code>\n🏦 <b>Details:</b> <code>${user.payout_account}</code>\n💰 <b>Amount:</b> <b>${amount} ETB</b>\n━━━━━━━━━━━━━━━━━━`;
 
-    await ctx.telegram.sendMessage(ADMIN_ID, adminRequest, {
-      parse_mode: 'HTML',
-      ...Markup.inlineKeyboard([[Markup.button.callback('✅ Confirm Paid', `confirm_paid_${userId}_${amount}`)]])
-    });
-
-    await env.DB.prepare("UPDATE users SET deposit_method = NULL, amount_input = '' WHERE user_id = ?").bind(userId).run();
-    
-    return ctx.editMessageText("✅ <b>Withdrawal Request Sent!</b>\n\nYour request has been submitted to the Admin. You will receive a notification once it's processed.", { parse_mode: 'HTML' });
-  } catch (e) {
-    return ctx.reply("Error: " + e.message);
-  }
+await ctx.telegram.sendMessage(ADMIN_ID, adminRequest, {
+  parse_mode: 'HTML',
+  ...Markup.inlineKeyboard([
+    [Markup.button.callback('✅ Confirm & Pay (Deduct)', `confirm_paid_${userId}_${amount}`)],
+    [Markup.button.callback('❌ Reject', `reject_withdraw_${userId}`)]
+  ])
 });
     
     
 bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
-  const targetId = ctx.match[1];
-  const amount = ctx.match[2];
+  const targetId = ctx.match[1]; // የተጠቃሚው ID
+  const amount = parseInt(ctx.match[2]); // መጠን
 
-  // አድሚኑ አሁን ለዚህ ተጠቃሚ ፎቶ እንዲልክ ሁኔታውን (State) እናስቀምጥ
-  await env.DB.prepare("UPDATE users SET deposit_method = ? WHERE user_id = ?")
-    .bind(`ADMIN_WAITING_PROOF_${targetId}_${amount}`, ADMIN_ID).run();
+  try {
+    // 1. መጀመሪያ የተጠቃሚውን ባላንስ እንፈትሽ
+    const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(targetId).first();
 
-  await ctx.answerCbQuery();
-  return ctx.reply(`📸 <b>Admin: Upload Payment Receipt</b>\n━━━━━━━━━━━━━━━━━━\nPlease send the screenshot for <b>User ${targetId}</b> (${amount} ETB).\n\n<i>The user will receive this photo as a confirmation.</i>`, { parse_mode: 'HTML' });
+    if (!user || user.balance < amount) {
+      return ctx.answerCbQuery("❌ ተጠቃሚው በቂ ባላንስ የለውም!", { show_alert: true });
+    }
+
+    // 2. ከዋሌት ላይ ብሩን መቀነስ
+    await env.DB.prepare("UPDATE users SET balance = balance - ? WHERE user_id = ?")
+      .bind(amount, targetId).run();
+
+    // 3. ለተጠቃሚው የደስታ መግለጫ መላክ
+    await ctx.telegram.sendMessage(targetId, `<b>✅ Withdrawal Successful!</b>\n━━━━━━━━━━━━━━━━━━\nYour withdrawal request of <b>${amount} ETB</b> has been processed and paid.\n\n<i>Thank you for using SmartX Academy!</i>`, { parse_mode: 'HTML' });
+
+    // 4. የአድሚኑን ሜሴጅ ማደስ (Edit message)
+    await ctx.answerCbQuery("ክፍያው ተፈጽሟል! ✅");
+    return ctx.editMessageText(`✅ <b>Paid & Deducted:</b>\nAmount: <code>${amount} ETB</code>\nUser ID: <code>${targetId}</code>\nStatus: <b>Completed</b>`, { parse_mode: 'HTML' });
+
+  } catch (e) {
+    console.error("Withdrawal Approval Error:", e);
+    return ctx.reply("❌ Error: " + e.message);
+  }
 });
     
     
