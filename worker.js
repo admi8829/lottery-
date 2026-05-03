@@ -1042,12 +1042,13 @@ bot.action('acc_del', async (ctx) => {
 });
           
 // --- 6. Number Pad Logic: Finalize Account (ይህ ኮድ መከፈት ነበረበት) ---
+// --- 6. Number Pad Logic: Finalize Account ---
 bot.action('acc_done', async (ctx) => {
   const userId = ctx.from.id;
   try {
     const user = await env.DB.prepare("SELECT deposit_method, payout_account FROM users WHERE user_id = ?").bind(userId).first();
     
-    // የአካውንት ቁጥር ርዝመት ቼክ
+    // የአካውንት ቁጥር ርዝመት ቼክ (ቢያንስ 8 ዲጂት)
     if (!user.payout_account || user.payout_account.length < 8) {
       return ctx.answerCbQuery("❌ Please enter a valid account number (Min 8 digits)!", { show_alert: true });
     }
@@ -1064,7 +1065,7 @@ bot.action('acc_done', async (ctx) => {
   }
 });
 
-// --- Amount Pad ማሳያ Function ---
+// --- 7. Amount Pad ማሳያ Function ---
 function showAmountPad(ctx, currentAmount, acc, bank) {
   const keys = [
     ['100', '200', '500'],
@@ -1091,38 +1092,47 @@ function showAmountPad(ctx, currentAmount, acc, bank) {
   return ctx.reply(msg, { parse_mode: 'HTML', ...keyboard });
 }
 
-// --- Amount Pad Logic ---
-
+// --- 8. Amount Pad Logic: Digit Press ---
 bot.action(/^amt_num_(\d)$/, async (ctx) => {
   const num = ctx.match[1];
-  const user = await env.DB.prepare("SELECT amount_input, deposit_method, payout_account FROM users WHERE user_id = ?").bind(ctx.from.id).first();
+  const userId = ctx.from.id;
+  const user = await env.DB.prepare("SELECT amount_input, deposit_method, payout_account FROM users WHERE user_id = ?").bind(userId).first();
   
   if (user.deposit_method !== 'AMOUNT_PAD') return ctx.answerCbQuery();
   
-  // መጀመሪያ 0 ካለ እሱን ማስወገድ
+  // መጀመሪያ 0 ካለ እሱን በማስወገድ ቁጥሩን መቀጠል
   let newAmt = (user.amount_input === '0' ? "" : user.amount_input || "") + num;
   
-  await env.DB.prepare("UPDATE users SET amount_input = ? WHERE user_id = ?").bind(newAmt, ctx.from.id).run();
+  // በጣም ትልቅ ቁጥር እንዳይገባ መገደብ (ለምሳሌ 6 ዲጂት)
+  if (newAmt.length > 6) return ctx.answerCbQuery("Limit reached!");
+
+  await env.DB.prepare("UPDATE users SET amount_input = ? WHERE user_id = ?").bind(newAmt, userId).run();
   return showAmountPad(ctx, newAmt, user.payout_account, "Withdrawal");
 });
 
+// --- 9. Amount Pad Logic: Quick Plus Buttons (+100, +200, +500) ---
 bot.action(/^amt_plus_(\d+)$/, async (ctx) => {
   const plus = ctx.match[1];
-  const user = await env.DB.prepare("SELECT amount_input, payout_account FROM users WHERE user_id = ?").bind(ctx.from.id).first();
+  const userId = ctx.from.id;
+  const user = await env.DB.prepare("SELECT amount_input, payout_account FROM users WHERE user_id = ?").bind(userId).first();
   
   const current = parseInt(user.amount_input) || 0;
   const newAmt = (current + parseInt(plus)).toString();
 
-  await env.DB.prepare("UPDATE users SET amount_input = ? WHERE user_id = ?").bind(newAmt, ctx.from.id).run();
+  await env.DB.prepare("UPDATE users SET amount_input = ? WHERE user_id = ?").bind(newAmt, userId).run();
   return showAmountPad(ctx, newAmt, user.payout_account, "Withdrawal");
 });
 
+// --- 10. Amount Pad Logic: Clear ---
 bot.action('amt_clear', async (ctx) => {
-  await env.DB.prepare("UPDATE users SET amount_input = '0' WHERE user_id = ?").bind(ctx.from.id).run();
-  const user = await env.DB.prepare("SELECT payout_account FROM users WHERE user_id = ?").bind(ctx.from.id).first();
+  const userId = ctx.from.id;
+  await env.DB.prepare("UPDATE users SET amount_input = '0' WHERE user_id = ?").bind(userId).run();
+  const user = await env.DB.prepare("SELECT payout_account FROM users WHERE user_id = ?").bind(userId).first();
   return showAmountPad(ctx, "0", user.payout_account, "Withdrawal");
 });
+  
 
+// --- 11. Withdrawal: Submit Request to Admin ---
 bot.action('amt_done', async (ctx) => {
   const userId = ctx.from.id;
   try {
@@ -1142,9 +1152,12 @@ bot.action('amt_done', async (ctx) => {
 
     await ctx.telegram.sendMessage(ADMIN_ID, adminRequest, {
       parse_mode: 'HTML',
-      ...Markup.inlineKeyboard([[Markup.button.callback('✅ Confirm Paid', `confirm_paid_${userId}_${amount}`)]])
+      ...Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Confirm Paid', `confirm_paid_${userId}_${amount}`)]
+      ])
     });
 
+    // የተጠቃሚውን ሁኔታ ማጽዳት
     await env.DB.prepare("UPDATE users SET deposit_method = NULL, amount_input = '' WHERE user_id = ?").bind(userId).run();
     
     return ctx.editMessageText("✅ <b>Withdrawal Request Sent!</b>\n\nYour request has been submitted to the Admin. You will receive a notification once it's processed.", { parse_mode: 'HTML' });
@@ -1152,28 +1165,32 @@ bot.action('amt_done', async (ctx) => {
     return ctx.reply("Error: " + e.message);
   }
 });
-    
-    
+
+// --- 12. Admin Action: Confirm Paid (Requests Proof) ---
 bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
+  if (ctx.from.id !== ADMIN_ID) return ctx.answerCbQuery("Unauthorized!");
+  
   const targetId = ctx.match[1];
   const amount = ctx.match[2];
 
   // አድሚኑ አሁን ለዚህ ተጠቃሚ ፎቶ እንዲልክ ሁኔታውን (State) እናስቀምጥ
+  // ማሳሰቢያ፡ ይህ መረጃ በ ADMIN_ID ስር ነው የሚቀመጠው
   await env.DB.prepare("UPDATE users SET deposit_method = ? WHERE user_id = ?")
     .bind(`ADMIN_WAITING_PROOF_${targetId}_${amount}`, ADMIN_ID).run();
 
   await ctx.answerCbQuery();
-  return ctx.reply(`📸 <b>Admin: Upload Payment Receipt</b>\n━━━━━━━━━━━━━━━━━━\nPlease send the screenshot for <b>User ${targetId}</b> (${amount} ETB).\n\n<i>The user will receive this photo as a confirmation.</i>`, { parse_mode: 'HTML' });
+  return ctx.reply(`📸 <b>Admin: Upload Payment Receipt</b>\n━━━━━━━━━━━━━━━━━━\nPlease send the screenshot for <b>User ${targetId}</b> (${amount} ETB).\n\n<i>The user will receive this photo and their balance will be deducted.</i>`, { 
+    parse_mode: 'HTML',
+    ...Markup.forceReply()
+  });
 });
-    
-    
 
+// --- 13. View My Tickets Logic ---
 bot.action('view_my_tickets', async (ctx) => {
   const userId = ctx.from.id;
   try {
     await ctx.answerCbQuery();
     
-    // 1. ሁሉንም የዚህን ሰው ቲኬቶች ከዳታቤዝ እናመጣለን
     const tickets = await env.DB.prepare("SELECT ticket_number, status, purchase_date FROM tickets WHERE user_id = ? ORDER BY purchase_date DESC")
       .bind(userId)
       .all();
@@ -1185,7 +1202,6 @@ bot.action('view_my_tickets', async (ctx) => {
       });
     }
 
-    // 2. ቲኬቶችን በሁለት መለየት (Active vs Drawn/Expired)
     let activeTickets = "";
     let expiredTickets = "";
     let activeCount = 0;
@@ -1202,15 +1218,11 @@ bot.action('view_my_tickets', async (ctx) => {
       }
     });
 
-    // 3. መልዕክቱን ማዘጋጀት
     let finalMsg = `<b>📂 TICKET HISTORY</b>\n━━━━━━━━━━━━━━━━━━\n\n`;
-    
     finalMsg += `<b>🎫 Active Entries (${activeCount})</b>\n`;
     finalMsg += activeCount > 0 ? activeTickets : "<i>No active tickets</i>\n";
-    
     finalMsg += `\n<b>⌛ Past Entries (${expiredCount})</b>\n`;
     finalMsg += expiredCount > 0 ? expiredTickets : "<i>No past history</i>\n";
-    
     finalMsg += `\n━━━━━━━━━━━━━━━━━━\n<i>Green (🟢) means currently in the draw.</i>`;
 
     return ctx.editMessageText(finalMsg, { 
@@ -1220,90 +1232,97 @@ bot.action('view_my_tickets', async (ctx) => {
         [Markup.button.callback('🔙 Back', 'back_to_settings')]
       ])
     });
-
   } catch (e) {
     console.error(e);
     return ctx.reply("Error fetching your tickets.");
   }
 });
-      
-
-
-    // ፎቶ እንዲልኩ መጠየቂያ
-bot.action('ask_for_photo', async (ctx) => {
-  const userId = ctx.from.id;
-  
-  // ተጠቃሚው ፎቶ እንዲልክ እየጠበቅን መሆኑን ምልክት እናስቀምጥ
-  await env.DB.prepare("UPDATE users SET deposit_method = 'WAITING_FOR_PHOTO' WHERE user_id = ?")
-    .bind(userId)
-    .run();
-
-  await ctx.answerCbQuery();
-  return ctx.reply("<b>📸 Please upload your Screenshot now:</b>\nMake sure the transaction reference number is visible.", { parse_mode: 'HTML' });
-});
     
 
-// --- ፎቶ ሲላክ ለአድሚን የሚሄድበት ሲስተም ---
-// Triggered when user clicks "Deposit"
+// --- 14. Deposit: Ask for Photo ---
+// ተጠቃሚው "Deposit" ሲል ፎቶ እንዲልክ መጠየቂያ
 bot.action('ask_for_photo', async (ctx) => {
   const userId = ctx.from.id;
-  
-  // Mark user as waiting to upload a photo
-  await env.DB.prepare("UPDATE users SET deposit_method = 'WAITING_FOR_PHOTO' WHERE user_id = ?")
-    .bind(userId)
-    .run();
+  try {
+    // ተጠቃሚው ፎቶ እንዲልክ እየጠበቅን መሆኑን ምልክት እናስቀምጥ
+    await env.DB.prepare("UPDATE users SET deposit_method = 'WAITING_FOR_PHOTO' WHERE user_id = ?")
+      .bind(userId)
+      .run();
 
-  await ctx.answerCbQuery("Waiting for screenshot...");
-  return ctx.reply("<b>📸 DEPOSIT VERIFICATION</b>\n━━━━━━━━━━━━━━━━━━\nPlease <b>Upload your Screenshot</b> (Telebirr or Bank receipt) now.\n\n<i>Ensure the Transaction ID and Amount are clearly visible.</i>", { parse_mode: 'HTML' });
+    await ctx.answerCbQuery("Waiting for screenshot...");
+    return ctx.reply("<b>📸 DEPOSIT VERIFICATION</b>\n━━━━━━━━━━━━━━━━━━\nPlease <b>Upload your Screenshot</b> (Telebirr or Bank receipt) now.\n\n<i>Ensure the Transaction ID and Amount are clearly visible.</i>", { parse_mode: 'HTML' });
+  } catch (e) {
+    return ctx.reply("Error: " + e.message);
+  }
 });
 
-// Handling the Photo Upload
+// --- 15. The Combined Photo Handler (Deposit & Withdrawal) ---
 bot.on('photo', async (ctx) => {
   const userId = ctx.from.id;
-  
-  // 1. Security Check: Is the user in "Waiting for Photo" mode?
-  const user = await env.DB.prepare("SELECT deposit_method, phone FROM users WHERE user_id = ?").bind(userId).first();
-
-  if (!user || user.deposit_method !== 'WAITING_FOR_PHOTO') {
-    return ctx.reply("ℹ️ Please click the <b>📥 Deposit</b> button before sending a screenshot.", { parse_mode: 'HTML' });
-  }
-
-  const firstName = ctx.from.first_name;
-  const username = ctx.from.username ? `@${ctx.from.username}` : "No Username";
-  const phone = user.phone || "Not Shared";
   const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
 
-  // Notify User
-  await ctx.reply("<b>⏳ Receipt Received!</b>\nAdmin is now verifying your deposit. You will be notified once approved.", { parse_mode: 'HTML' });
+  try {
+    const user = await env.DB.prepare("SELECT deposit_method, phone FROM users WHERE user_id = ?").bind(userId).first();
 
-  // 2. Clear the waiting status
-  await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(userId).run();
+    // ሀ. አድሚኑ ለዊዝድሮው (Withdrawal) ፎቶ ሲልክ
+    if (userId === ADMIN_ID && user?.deposit_method?.startsWith('ADMIN_WAITING_PROOF_')) {
+      const parts = user.deposit_method.split('_');
+      const targetUserId = parts[3];
+      const amount = parseInt(parts[4]);
 
-  // 3. Send to Admin for Approval
-  const adminDepositCaption = `
-<b>💰 NEW DEPOSIT REQUEST</b>
-━━━━━━━━━━━━━━━━━━
-👤 <b>User:</b> ${firstName}
-🆔 <b>ID:</b> <code>${userId}</code>
-📞 <b>Phone:</b> <code>${phone}</code>
-🔗 <b>Username:</b> ${username}
-━━━━━━━━━━━━━━━━━━
-<b>Select amount to credit to user:</b>`;
+      // ለተጠቃሚው ፎቶውን መላክ
+      await ctx.telegram.sendPhoto(targetUserId, photoId, {
+        caption: `✅ <b>Withdrawal Successful!</b>\n━━━━━━━━━━━━━━━━━━\nYour withdrawal of <b>${amount} ETB</b> has been paid.\n\n<i>Thank you for using our bot!</i>`,
+        parse_mode: 'HTML'
+      });
 
-  const adminDepositKeyboard = Markup.inlineKeyboard([
-    [Markup.button.callback('✅ +10 ETB', `approve_${userId}_10`), Markup.button.callback('✅ +50 ETB', `approve_${userId}_50`)],
-    [Markup.button.callback('✅ +100 ETB', `approve_${userId}_100`), Markup.button.callback('✅ +500 ETB', `approve_${userId}_500`)],
-    [Markup.button.callback('➕ Custom Amount', `custom_approve_${userId}`)],
-    [Markup.button.callback('❌ Reject Request', `reject_${userId}`)]
-  ]);
+      // የተጠቃሚውን ባላንስ መቀነስ እና የአድሚኑን ስቴት ማጽዳት
+      await env.DB.prepare("UPDATE users SET balance = balance - ? WHERE user_id = ?").bind(amount, targetUserId).run();
+      await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(ADMIN_ID).run();
 
-  return ctx.telegram.sendPhoto(ADMIN_ID, photoId, {
-    caption: adminDepositCaption,
-    parse_mode: 'HTML',
-    ...adminDepositKeyboard
-  });
+      return ctx.reply(`✅ <b>Done!</b>\nReceipt sent to User <code>${targetUserId}</code> and ${amount} ETB deducted.`);
+    }
+
+    // ለ. ተጠቃሚው ለዲፖዚት (Deposit) ፎቶ ሲልክ
+    if (user?.deposit_method === 'WAITING_FOR_PHOTO') {
+      const firstName = ctx.from.first_name;
+      const username = ctx.from.username ? `@${ctx.from.username}` : "No Username";
+      const phone = user.phone || "Not Shared";
+
+      // ለተጠቃሚው ማረጋገጫ መስጠት
+      await ctx.reply("<b>⏳ Receipt Received!</b>\nAdmin is now verifying your deposit. You will be notified once approved.", { parse_mode: 'HTML' });
+
+      // ሁኔታውን ማጽዳት
+      await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(userId).run();
+
+      // ለአድሚን መላክ
+      const adminDepositCaption = `<b>💰 NEW DEPOSIT REQUEST</b>\n━━━━━━━━━━━━━━━━━━\n👤 <b>User:</b> ${firstName}\n🆔 <b>ID:</b> <code>${userId}</code>\n📞 <b>Phone:</b> <code>${phone}</code>\n🔗 <b>Username:</b> ${username}\n━━━━━━━━━━━━━━━━━━\n<b>Select amount to credit to user:</b>`;
+
+      const adminDepositKeyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('✅ +10 ETB', `approve_${userId}_10`), Markup.button.callback('✅ +50 ETB', `approve_${userId}_50`)],
+        [Markup.button.callback('✅ +100 ETB', `approve_${userId}_100`), Markup.button.callback('✅ +500 ETB', `approve_${userId}_500`)],
+        [Markup.button.callback('➕ Custom Amount', `custom_approve_${userId}`)],
+        [Markup.button.callback('❌ Reject Request', `reject_${userId}`)]
+      ]);
+
+      return ctx.telegram.sendPhoto(ADMIN_ID, photoId, {
+        caption: adminDepositCaption,
+        parse_mode: 'HTML',
+        ...adminDepositKeyboard
+      });
+    }
+
+    // መመሪያ ያልነበረው ፎቶ ከሆነ
+    if (userId !== ADMIN_ID) {
+        return ctx.reply("ℹ️ Please click the <b>📥 Deposit</b> button before sending a screenshot.", { parse_mode: 'HTML' });
+    }
+
+  } catch (error) {
+    console.error("Photo handler error:", error);
+    return ctx.reply("⚠️ An error occurred while processing the photo.");
+  }
 });
-
+    
 
 // --- አድሚኑ የፈለገውን ያህል ብር እንዲጨምር የሚያስችለው Logic ---
 bot.action(/^custom_approve_(\d+)$/, async (ctx) => {
