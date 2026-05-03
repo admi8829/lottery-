@@ -1239,36 +1239,7 @@ bot.action('view_my_tickets', async (ctx) => {
     return ctx.reply("Error fetching your tickets.");
   }
 });
-      
-
-
-    // ፎቶ እንዲልኩ መጠየቂያ
-bot.action('ask_for_photo', async (ctx) => {
-  const userId = ctx.from.id;
   
-  // ተጠቃሚው ፎቶ እንዲልክ እየጠበቅን መሆኑን ምልክት እናስቀምጥ
-  await env.DB.prepare("UPDATE users SET deposit_method = 'WAITING_FOR_PHOTO' WHERE user_id = ?")
-    .bind(userId)
-    .run();
-
-  await ctx.answerCbQuery();
-  return ctx.reply("<b>📸 Please upload your Screenshot now:</b>\nMake sure the transaction reference number is visible.", { parse_mode: 'HTML' });
-});
-    
-
-// --- ፎቶ ሲላክ ለአድሚን የሚሄድበት ሲስተም ---
-// Triggered when user clicks "Deposit"
-bot.action('ask_for_photo', async (ctx) => {
-  const userId = ctx.from.id;
-  
-  // Mark user as waiting to upload a photo
-  await env.DB.prepare("UPDATE users SET deposit_method = 'WAITING_FOR_PHOTO' WHERE user_id = ?")
-    .bind(userId)
-    .run();
-
-  await ctx.answerCbQuery("Waiting for screenshot...");
-  return ctx.reply("<b>📸 DEPOSIT VERIFICATION</b>\n━━━━━━━━━━━━━━━━━━\nPlease <b>Upload your Screenshot</b> (Telebirr or Bank receipt) now.\n\n<i>Ensure the Transaction ID and Amount are clearly visible.</i>", { parse_mode: 'HTML' });
-});
 
 // Handling the Photo Upload
 bot.on('photo', async (ctx) => {
