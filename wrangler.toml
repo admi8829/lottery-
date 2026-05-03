@@ -5,7 +5,7 @@ compatibility_flags = [ "nodejs_compat" ]
 
 [vars]
 # BOT_TOKEN በ Dashboard ላይ ካልሞላህ እዚህ ጋር መጨመር ትችላለህ
- BOT_TOKEN = "8454876664:AAGK4UZqu-4-VG_90yTq5bhWRPwlZwvjXUc"
+ BOT_TOKEN = "8777602922:AAFM_7iIopglsOFjA6TuSS1jfvmr9oP89Uo"
 
 [[d1_databases]]
 binding = "DB"  # በኮዱ ውስጥ env.DB ያልነውን ያመለክታል
