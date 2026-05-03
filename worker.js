@@ -5,7 +5,7 @@ export default {
     if (!env.BOT_TOKEN) return new Response("BOT_TOKEN missing");
     
     const bot = new Telegraf(env.BOT_TOKEN);
-    const CHANNEL_ID = "@testing_pent_bot"; // ያንተ ቻናል
+    const CHANNEL_ID = "@ethuoo"; // ያንተ ቻናል
     const ADMIN_ID = 1417184246;
     const ADMIN_GROUP_ID = -1003902315085
     
