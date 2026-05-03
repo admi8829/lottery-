@@ -1414,68 +1414,64 @@ bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
     
 
 // --- ፎቶ መቀበያ (ለዲፖዚት እና ለአድሚን ማረጋገጫ) ---
+
 bot.on('photo', async (ctx) => {
-  const userId = ctx.from.id;
-  const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-  
-  // የአድሚኑን ዳታ እንፈትሽ
-  const adminState = await env.DB.prepare("SELECT deposit_method FROM users WHERE user_id = ?").bind(userId).first();
+  try {
+    const userId = ctx.from.id;
+    const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+    
+    // የተጠቃሚውን (ወይም የአድሚኑን) ወቅታዊ ሁኔታ ከደታቤዝ እናምጣ
+    const user = await env.DB.prepare("SELECT deposit_method FROM users WHERE user_id = ?").bind(userId).first();
 
-  // --- ሀ. አድሚኑ ለዊዝድሮው ማረጋገጫ ፎቶ ሲልክ ---
-  if (userId === ADMIN_ID && adminState && adminState.deposit_method && adminState.deposit_method.startsWith('ADMIN_WAITING_PROOF_')) {
-    const parts = adminState.deposit_method.split('_');
-    const targetUserId = parts[3];
-    const amount = parts[4];
+    if (!user) return;
 
-    try {
-      // 1. ለተጠቃሚው ፎቶውን መላክ
-      await ctx.telegram.sendPhoto(targetUserId, photoId, {
-        caption: `✅ <b>Withdrawal Successful!</b>\n━━━━━━━━━━━━━━━━━━\nYour withdrawal request of <b>${amount} ETB</b> has been completed.\n\n<i>Thank you for choosing Smart X Academy!</i>`,
+    // --- ሀ. አድሚኑ ለዊዝድሮው (Withdrawal) ማረጋገጫ ፎቶ ሲልክ ---
+    if (userId === ADMIN_ID && user.deposit_method && user.deposit_method.startsWith('ADMIN_WAITING_PROOF_')) {
+      const parts = user.deposit_method.split('_');
+      const targetUserId = parts[3];
+      const amount = parts[4];
+
+      try {
+        // 1. ለተጠቃሚው ፎቶውን መላክ
+        await ctx.telegram.sendPhoto(targetUserId, photoId, {
+          caption: `✅ <b>Withdrawal Successful!</b>\n━━━━━━━━━━━━━━━━━━\nYour withdrawal request of <b>${amount} ETB</b> has been completed.\n\n<i>Thank you for choosing Smart X Academy!</i>`,
+          parse_mode: 'HTML'
+        });
+
+        // 2. የተጠቃሚውን ባላንስ መቀነስ (ብሩ መከፈሉን ለማረጋገጥ)
+        await env.DB.prepare("UPDATE users SET balance = balance - ? WHERE user_id = ?")
+          .bind(amount, targetUserId).run();
+
+        // 3. የአድሚኑን ሁኔታ (State) ማጽዳት
+        await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(ADMIN_ID).run();
+
+        return ctx.reply(`✅ <b>Success!</b>\nReceipt sent to User <code>${targetUserId}</code> and balance updated.`);
+      } catch (e) {
+        return ctx.reply("❌ Error sending photo to user: " + e.message);
+      }
+    }
+
+    // --- ለ. ተጠቃሚው ለዲፖዚት (Deposit) ፎቶ ሲልክ ---
+    if (user.deposit_method === 'WAITING_DEPOSIT_PHOTO') {
+      // ለአድሚን ማሳወቂያ መላክ
+      await ctx.telegram.sendPhoto(ADMIN_ID, photoId, {
+        caption: `<b>💰 NEW DEPOSIT PROOF</b>\n━━━━━━━━━━━━━━━━━━\n👤 <b>From:</b> ${ctx.from.first_name}\n🆔 <b>User ID:</b> <code>${userId}</code>\n📅 <b>Time:</b> ${new Date().toLocaleString()}\n━━━━━━━━━━━━━━━━━━\n<i>Verify the payment and use 'add' command to update balance.</i>`,
         parse_mode: 'HTML'
       });
 
-      // 2. የተጠቃሚውን ባላንስ መቀነስ (ብሩ ስለተከፈለ)
-      await env.DB.prepare("UPDATE users SET balance = balance - ? WHERE user_id = ?")
-        .bind(amount, targetUserId).run();
-
-      // 3. የአድሚኑን ሁኔታ (State) ማጽዳት
-      await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(ADMIN_ID).run();
-
-      return ctx.reply(`✅ <b>Success!</b>\nReceipt sent to User <code>${targetUserId}</code> and balance updated.`);
-    } catch (e) {
-      return ctx.reply("❌ Error: " + e.message);
+      // የተጠቃሚውን ሁኔታ ማጽዳት
+      await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(userId).run();
+      
+      return ctx.reply("✅ <b>Success!</b>\nYour deposit screenshot has been sent to the Admin. Please wait for verification.", { 
+        parse_mode: 'HTML' 
+      });
     }
-  }
-
-  // --- ለ. ተጠቃሚው ለዲፖዚት (Deposit) ፎቶ ሲልክ ---
-  if (adminState && adminState.deposit_method === 'WAITING_DEPOSIT_PHOTO') {
-    await ctx.telegram.sendPhoto(ADMIN_ID, photoId, {
-      caption: `<b>💰 NEW DEPOSIT PROOF</b>\n👤 User: ${ctx.from.first_name}\n🆔 ID: <code>${userId}</code>`,
-      parse_mode: 'HTML'
-    });
-    await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(userId).run();
-    return ctx.reply("✅ <b>Deposit Screenshot Sent!</b>\nAdmin will verify it soon.");
+  } catch (error) {
+    console.error("Photo handler error:", error);
+    return ctx.reply("⚠️ An error occurred while processing the photo.");
   }
 });
-    
-
-  // --- ለ. ለተጠቃሚ፡ የዲፖዚት (Deposit) ፎቶ ሲልክ ---
-  if (user.deposit_method === 'WAITING_DEPOSIT_PHOTO') {
-    // ለአድሚን ፎቶውን መላክ
-    await ctx.telegram.sendPhoto(ADMIN_ID, photoId, {
-      caption: `<b>💰 NEW DEPOSIT PROOF</b>\n━━━━━━━━━━━━━━━━━━\n👤 <b>From:</b> ${ctx.from.first_name}\n🆔 <b>User ID:</b> <code>${userId}</code>\n📅 <b>Time:</b> ${new Date().toLocaleString()}\n━━━━━━━━━━━━━━━━━━\n<i>Verify the payment and use 'add' command to update balance.</i>`,
-      parse_mode: 'HTML'
-    });
-
-    // የተጠቃሚውን ሁኔታ ማጽዳት
-    await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(userId).run();
-    
-    return ctx.reply("✅ <b>Success!</b>\nYour deposit screenshot has been sent to the Admin. Please wait for verification.", { parse_mode: 'HTML' });
-  }
-});
-    
-    
-
+        
     // የዌብሁክ ሎጂክ
     if (request.method === 'POST') {
       try {
