@@ -950,6 +950,7 @@ bot.hears('💰 Wallet & Invite', async (ctx) => {
 });
 
 // --- 1. Withdrawal Start: Bank Selection ---
+// --- 1. Withdrawal Start: Bank Selection ---
 bot.action('request_withdraw', async (ctx) => {
   const userId = ctx.from.id;
   try {
@@ -1021,7 +1022,6 @@ bot.action(/^num_(\d)$/, async (ctx) => {
   const newAcc = (user.payout_account || "") + num;
   const bank = user.deposit_method.replace('ACC_PAD_', '');
 
-  // አካውንት ቁጥር ከ 20 ዲጂት እንዳይበልጥ መገደብ ይቻላል
   if (newAcc.length > 20) return ctx.answerCbQuery("Too long!");
 
   await env.DB.prepare("UPDATE users SET payout_account = ? WHERE user_id = ?").bind(newAcc, userId).run();
@@ -1031,16 +1031,16 @@ bot.action(/^num_(\d)$/, async (ctx) => {
 // --- 5. Number Pad Logic: Clear/Delete ---
 bot.action('acc_del', async (ctx) => {
   const userId = ctx.from.id;
-  const user = await env.DB.prepare("SELECT deposit_method, payout_account FROM users WHERE user_id = ?").bind(userId).first();
+  const user = await env.DB.prepare("SELECT deposit_method FROM users WHERE user_id = ?").bind(userId).first();
   
-  if (!user.payout_account) return ctx.answerCbQuery("Already empty!");
+  if (!user.deposit_method || !user.deposit_method.startsWith('ACC_PAD_')) return ctx.answerCbQuery();
   
-  const newAcc = user.payout_account.slice(0, -1);
   const bank = user.deposit_method.replace('ACC_PAD_', '');
+  await env.DB.prepare("UPDATE users SET payout_account = '' WHERE user_id = ?").bind(userId).run();
   
-  await env.DB.prepare("UPDATE users SET payout_account = ? WHERE user_id = ?").bind(newAcc, userId).run();
-  return showNumberPad(ctx, newAcc, bank);
+  return showNumberPad(ctx, "", bank);
 });
+          
 // --- 6. Number Pad Logic: Finalize Account (ይህ ኮድ መከፈት ነበረበት) ---
 bot.action('acc_done', async (ctx) => {
   const userId = ctx.from.id;
