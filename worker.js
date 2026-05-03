@@ -6,7 +6,7 @@ export default {
     
     const bot = new Telegraf(env.BOT_TOKEN);
     const CHANNEL_ID = "@SmartX_Ethio"; // ያንተ ቻናል
-    const ADMIN_ID = 8344169004;
+    const ADMIN_ID = 1417184246;
     const ADMIN_GROUP_ID = -1003879708444
     
     // --- 1. Keyboards ---
