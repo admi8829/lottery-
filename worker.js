@@ -250,7 +250,7 @@ bot.action('admin_draw_winners', async (ctx) => {
   bot.action('check_join', async (ctx) => {
   try {
     // ቴሌግራምን ተጠቃሚው አባል መሆኑን እንጠይቃለን
-    const member = await ctx.telegram.getChatMember("@SmartX_Ethio", ctx.from.id);
+    const member = await ctx.telegram.getChatMember("@ethuoo", ctx.from.id);
     const isMember = ['member', 'administrator', 'creator'].includes(member.status);
 
     if (isMember) {
