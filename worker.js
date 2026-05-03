@@ -5,9 +5,9 @@ export default {
     if (!env.BOT_TOKEN) return new Response("BOT_TOKEN missing");
     
     const bot = new Telegraf(env.BOT_TOKEN);
-    const CHANNEL_ID = "@luckyluckypersons"; // ያንተ ቻናል
-    const ADMIN_ID = 7471102761;
-    const ADMIN_GROUP_ID = -1003977928710
+    const CHANNEL_ID = "@testing_pent_bot"; // ያንተ ቻናል
+    const ADMIN_ID = 1417184246;
+    const ADMIN_GROUP_ID = -1003902315085
     
     // --- 1. Keyboards ---
 const mainKeyboard = Markup.keyboard([
