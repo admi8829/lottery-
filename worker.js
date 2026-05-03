@@ -17,7 +17,7 @@ export default {
     ]).resize();
     
     const requestPhoneKeyboard = Markup.keyboard([
-      [Markup.button.contactRequest('📲 Send Phone Number')]
+      [Markup.button.contactRequest('📲 send to phone ')]
     ]).resize();
 
     // --- 2. Start Command ---
@@ -26,144 +26,176 @@ export default {
         const userId = ctx.from.id;
         const startPayload = ctx.startPayload;
         
-        let user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
+        const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
 
         if (!user) {
-          await env.DB.prepare("INSERT INTO users (user_id, first_name, username, balance) VALUES (?, ?, ?, ?)")
-            .bind(userId, ctx.from.first_name, ctx.from.username || 'N/A', 0).run();
-          
-          if (startPayload && startPayload !== userId.toString()) {
-            await env.DB.prepare("UPDATE users SET referred_by = ? WHERE user_id = ? AND referred_by IS NULL")
-              .bind(startPayload, userId).run();
+          let referredBy = null;
+          if (startPayload && !isNaN(startPayload)) {
+            referredBy = parseInt(startPayload);
           }
-          return ctx.reply(`👋 Welcome ${ctx.from.first_name} to SmartX Academy!`, mainKeyboard);
+
+          await env.DB.prepare(
+            "INSERT INTO users (user_id, username, first_name, balance, referred_by) VALUES (?, ?, ?, 0, ?)"
+          ).bind(userId, ctx.from.username || 'N/A', ctx.from.first_name, referredBy).run();
+
+          if (referredBy) {
+            await ctx.telegram.sendMessage(referredBy, `<b>🎁 New Referral!</b>\nYour friend ${ctx.from.first_name} joined. You'll get bonus when they play!`, { parse_mode: 'HTML' });
+          }
+
+          return ctx.reply(`<b>Welcome to Smart X Academy! 🚀</b>\n\nPlay lottery and win amazing prizes.`, {
+            parse_mode: 'HTML',
+            ...mainKeyboard
+          });
         }
-        
-        return ctx.reply(`Welcome back, ${ctx.from.first_name}!`, mainKeyboard);
+
+        return ctx.reply(`<b>Welcome back, ${ctx.from.first_name}!</b>`, {
+          parse_mode: 'HTML',
+          ...mainKeyboard
+        });
       } catch (e) {
+        console.error(e);
         return ctx.reply("Error: " + e.message);
       }
     });
 
-    // --- 3. Admin Panel ---
-    bot.hears('👨‍✈️ Admin', async (ctx) => {
-      if (ctx.from.id !== ADMIN_ID) return ctx.reply("❌ Access Denied!");
-      return ctx.reply("Welcome Admin. Choose an action:", Markup.inlineKeyboard([
-        [Markup.button.callback("📊 Statistics", "admin_stats")],
-        [Markup.button.callback("📢 Broadcast", "admin_broadcast")]
-      ]));
-    });
-
-    // --- 4. Wallet & Withdraw System ---
+    // --- 3. Wallet & Invite ---
     bot.hears('💰 Wallet & Invite', async (ctx) => {
-      const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(ctx.from.id).first();
-      const balance = user ? user.balance : 0;
-      const msg = `<b>💰 Your Wallet</b>\n━━━━━━━━━━━━━━\nBalance: <b>${balance} ETB</b>\n━━━━━━━━━━━━━━`;
-      return ctx.reply(msg, {
+      const userId = ctx.from.id;
+      const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
+      const referralLink = `https://t.me/${ctx.botInfo.username}?start=${userId}`;
+
+      const walletMsg = `<b>🏦 YOUR WALLET</b>\n━━━━━━━━━━━━━━━━━━\n💰 <b>Balance:</b> <code>${user.balance} ETB</code>\n🆔 <b>User ID:</b> <code>${userId}</code>\n\n<b>👥 REFERRAL SYSTEM</b>\nShare your link and earn bonus!\n🔗 <code>${referralLink}</code>`;
+
+      return ctx.reply(walletMsg, {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback('➕ Deposit', 'deposit_menu'), Markup.button.callback('💸 Withdraw', 'withdraw_request')]
+          [Markup.button.callback('💳 Deposit', 'deposit_menu'), Markup.button.callback('💸 Withdraw', 'withdraw_menu')],
+          [Markup.button.url('📣 Share Link', `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=Join%20SmartX%20Academy!`)]
         ])
       });
     });
 
-    bot.action('deposit_menu', (ctx) => {
-      return ctx.editMessageText("<b>💳 Choose Deposit Method</b>", {
+    // --- 4. Deposit System ---
+    bot.action('deposit_menu', async (ctx) => {
+      return ctx.editMessageText("<b>💳 SELECT DEPOSIT METHOD</b>", {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
-          [Markup.button.callback('📱 Telebirr', 'dep_telebirr'), Markup.button.callback('🏦 Bank', 'dep_bank')]
+          [Markup.button.callback('📱 Telebirr', 'deposit_telebirr')],
+          [Markup.button.callback('🏦 Bank Transfer', 'deposit_bank')],
+          [Markup.button.callback('🔙 Back', 'wallet_back')]
         ])
       });
     });
 
-    bot.action('dep_bank', (ctx) => {
-      return ctx.editMessageText("<b>🏦 Bank Details:</b>\nCBE: 1000123456789\nName: Habtamu Yifru", {
+    bot.action('deposit_telebirr', async (ctx) => {
+      return ctx.editMessageText("<b>📱 Telebirr Deposit</b>\n\nNumber: <code>0912345678</code>\nName: Habtamu Y.\n\nAfter payment, send screenshot.", {
         parse_mode: 'HTML',
-        ...Markup.inlineKeyboard([[Markup.button.callback('📸 Send Receipt', 'ask_for_photo')]])
+        ...Markup.inlineKeyboard([[Markup.button.callback('📸 Send Screenshot', 'ask_for_photo')]])
+      });
+    });
+
+    bot.action('deposit_bank', async (ctx) => {
+      return ctx.editMessageText("<b>🏦 Bank Deposit (CBE)</b>\n\nAccount: <code>1000123456789</code>\nName: Habtamu Y.\n\nAfter payment, send screenshot.", {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([[Markup.button.callback('📸 Send Screenshot', 'ask_for_photo')]])
       });
     });
 
     bot.action('ask_for_photo', async (ctx) => {
       await env.DB.prepare("UPDATE users SET deposit_method = 'WAITING_DEPOSIT_PHOTO' WHERE user_id = ?").bind(ctx.from.id).run();
       await ctx.answerCbQuery();
-      return ctx.reply("<b>📸 Please upload your Receipt Screenshot now:</b>", { parse_mode: 'HTML' });
+      return ctx.reply("<b>📸 Upload your Receipt</b>\nPlease send the screenshot of your payment now.", { parse_mode: 'HTML' });
     });
 
-    // --- 5. Withdraw Process ---
-    bot.action('withdraw_request', async (ctx) => {
-      const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(ctx.from.id).first();
-      if (user.balance < 50) return ctx.answerCbQuery("❌ Minimum balance for withdraw is 50 ETB", { show_alert: true });
-      
-      await env.DB.prepare("UPDATE users SET deposit_method = 'WAITING_WITHDRAW_AMT' WHERE user_id = ?").bind(ctx.from.id).run();
-      return ctx.reply("Enter amount to withdraw:");
+    // --- 5. Withdrawal System ---
+    bot.action('withdraw_menu', async (ctx) => {
+      return ctx.editMessageText("<b>💸 WITHDRAWAL</b>\nMinimum: 50 ETB\n\nPlease enter the amount you want to withdraw:", {
+        parse_mode: 'HTML'
+      });
     });
 
-    // --- 6. Admin Approval with Direct Deduction ---
-    bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
+    // Handle Amount Input (via Hears or Message)
+    bot.on('text', async (ctx) => {
+      const userId = ctx.from.id;
+      const text = ctx.message.text;
+
+      // Admin logic
+      if (text === '👨‍✈️ Admin' && userId === ADMIN_ID) {
+        return ctx.reply("Welcome Boss! Choose action:", Markup.inlineKeyboard([
+          [Markup.button.callback('📊 Stats', 'admin_stats'), Markup.button.callback('📢 Broadcast', 'admin_bc')]
+        ]));
+      }
+
+      // If text is a number, assume it's for withdrawal or other amount tasks
+      if (!isNaN(text) && parseInt(text) >= 50) {
+        await env.DB.prepare("UPDATE users SET amount_input = ? WHERE user_id = ?").bind(text, userId).run();
+        return ctx.reply(`Withdraw amount: ${text} ETB. Please send your Payout Account Details (Bank/Telebirr):`);
+      }
+
+      // Assume any other text is Payout Details if amount is set
+      const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
+      if (user && user.amount_input) {
+        const amount = user.amount_input;
+        // Send request to Admin
+        const adminReq = `<b>🔔 WITHDRAWAL REQUEST</b>\n━━━━━━━━━━━━━━━━━━\n👤 <b>User:</b> ${ctx.from.first_name}\n🆔 <b>ID:</b> <code>${userId}</code>\n💰 <b>Amount:</b> <b>${amount} ETB</b>\n🏦 <b>Details:</b> <code>${text}</code>`;
+        
+        await ctx.telegram.sendMessage(ADMIN_ID, adminReq, Markup.inlineKeyboard([
+          [Markup.button.callback('✅ Confirm & Deduct', `confirm_pay_${userId}_${amount}`)],
+          [Markup.button.callback('❌ Reject', `reject_with_${userId}`)]
+        ]));
+
+        await env.DB.prepare("UPDATE users SET amount_input = NULL WHERE user_id = ?").bind(userId).run();
+        return ctx.reply("✅ Request sent! Admin will process it soon.");
+      }
+    });
+
+    // --- 6. Admin Action Handlers (Confirm/Reject) ---
+    bot.action(/^confirm_pay_(\d+)_(\d+)$/, async (ctx) => {
       const targetId = ctx.match[1];
       const amount = parseInt(ctx.match[2]);
 
       try {
         const user = await env.DB.prepare("SELECT balance FROM users WHERE user_id = ?").bind(targetId).first();
-        if (!user || user.balance < amount) return ctx.answerCbQuery("❌ Insufficient User Balance!");
+        if (!user || user.balance < amount) {
+          return ctx.answerCbQuery("❌ Insufficient user balance!", { show_alert: true });
+        }
 
         await env.DB.prepare("UPDATE users SET balance = balance - ? WHERE user_id = ?").bind(amount, targetId).run();
-        await ctx.telegram.sendMessage(targetId, `✅ <b>Withdrawal Success!</b>\n${amount} ETB has been paid.`, { parse_mode: 'HTML' });
+        await ctx.telegram.sendMessage(targetId, `<b>✅ Withdrawal Successful!</b>\nYour payment of ${amount} ETB has been processed.`, { parse_mode: 'HTML' });
         
-        await ctx.answerCbQuery("Success! Wallet updated.");
-        return ctx.editMessageText(`✅ <b>Approved:</b> ${amount} ETB deducted from User ${targetId}`);
+        await ctx.editMessageText(`✅ <b>Paid:</b> ${amount} ETB to User ${targetId}`);
+        return ctx.answerCbQuery("Payment Confirmed!");
       } catch (e) {
         return ctx.reply("Error: " + e.message);
       }
     });
 
-    // --- 7. Message & Photo Handlers ---
-    bot.on('text', async (ctx) => {
-      const userId = ctx.from.id;
-      const text = ctx.message.text;
-      const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
-
-      if (!user) return;
-
-      if (user.deposit_method === 'WAITING_WITHDRAW_AMT') {
-        const amt = parseInt(text);
-        if (isNaN(amt) || amt < 50) return ctx.reply("Please enter a valid amount (Min 50).");
-        
-        await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(userId).run();
-        const adminMsg = `<b>🔔 WITHDRAWAL REQUEST</b>\n👤 User: ${ctx.from.first_name}\n💰 Amount: ${amt} ETB`;
-        await ctx.telegram.sendMessage(ADMIN_ID, adminMsg, {
-          parse_mode: 'HTML',
-          ...Markup.inlineKeyboard([
-            [Markup.button.callback('✅ Confirm & Deduct', `confirm_paid_${userId}_${amt}`)],
-            [Markup.button.callback('❌ Reject', `reject_withdraw`)]
-          ])
-        });
-        return ctx.reply("✅ Request sent to Admin.");
-      }
+    bot.action(/^reject_with_(\d+)$/, async (ctx) => {
+      const targetId = ctx.match[1];
+      await ctx.telegram.sendMessage(targetId, "❌ Your withdrawal request was rejected by Admin.");
+      return ctx.editMessageText("❌ Request Rejected.");
     });
 
+    // --- 7. Photo Handler (For Deposit) ---
     bot.on('photo', async (ctx) => {
       const userId = ctx.from.id;
       const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-      const user = await env.DB.prepare("SELECT deposit_method FROM users WHERE user_id = ?").bind(userId).first();
+      const user = await env.DB.prepare("SELECT * FROM users WHERE user_id = ?").bind(userId).first();
 
-      if (user && user.deposit_method === 'WAITING_DEPOSIT_PHOTO') {
+      if (user.deposit_method === 'WAITING_DEPOSIT_PHOTO') {
         await ctx.telegram.sendPhoto(ADMIN_ID, photoId, {
-          caption: `<b>💰 NEW DEPOSIT PROOF</b>\n👤 From: ${ctx.from.first_name}\n🆔 ID: <code>${userId}</code>`,
+          caption: `<b>💰 NEW DEPOSIT PROOF</b>\n👤 From: ${ctx.from.first_name}\n🆔 ID: <code>${userId}</code>\nUse /add ${userId} amount to update.`,
           parse_mode: 'HTML'
         });
         await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(userId).run();
-        return ctx.reply("✅ Receipt sent! Admin will verify soon.");
+        return ctx.reply("✅ Receipt sent to Admin. Waiting for approval.");
       }
     });
 
-    // --- Webhook Logic ---
-    if (request.method === 'POST') {
-      const body = await request.json();
-      await bot.handleUpdate(body);
-      return new Response('OK');
-    }
-    return new Response('Bot is running');
+    // --- Webhook Support ---
+    const body = await request.json();
+    await bot.handleUpdate(body);
+    return new Response("OK");
   }
 };
-          
+                                          
