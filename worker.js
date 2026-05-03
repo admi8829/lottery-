@@ -35,7 +35,7 @@ bot.start(async (ctx) => {
     // 2. ተጠቃሚው ቀድሞ ተመዝግቦ ከሆነ
     if (user && user.phone) {
       // ቻናሉ ላይ መኖሩን ቼክ እናድርግ
-      const member = await ctx.telegram.getChatMember("@SmartX_Ethio", userId).catch(() => ({ status: 'left' }));
+      const member = await ctx.telegram.getChatMember("@ethuoo", userId).catch(() => ({ status: 'left' }));
       const isMember = ['member', 'administrator', 'creator'].includes(member.status);
 
       if (isMember) {
@@ -103,7 +103,7 @@ bot.on('contact', async (ctx) => {
     }
 
     // --- SECURITY & UX CHECK ---
-    const member = await ctx.telegram.getChatMember("@SmartX_Ethio", userId).catch(() => ({ status: 'left' }));
+    const member = await ctx.telegram.getChatMember("@ethuoo", userId).catch(() => ({ status: 'left' }));
     const isMember = ['member', 'administrator', 'creator'].includes(member.status);
 
     if (isMember) {
@@ -121,7 +121,7 @@ Final step: Join our channel to unlock the <b>Main Menu</b> and see results.
     return ctx.reply(completionMsg, {
       parse_mode: 'HTML',
       ...Markup.inlineKeyboard([
-        [Markup.button.url('📢 Join Official Channel', 'https://t.me/SmartX_Ethio')],
+        [Markup.button.url('📢 Join Official Channel', 'https://t.me/ethuoo')],
         [Markup.button.callback('✅ I Have Joined', 'check_join')]
       ])
     });
