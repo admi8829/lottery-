@@ -1438,87 +1438,80 @@ bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
 
 
 
-    // --- 15. The ONLY Photo Handler (Deposit & Withdrawal) ---
+    // --- 15. The Combined Photo Handler (Deposit & Withdrawal) ---
 bot.on('photo', async (ctx) => {
+  const userId = ctx.from.id;
+  const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+
   try {
-    const userId = ctx.from.id;
-    const photoId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-    const caption = ctx.message.caption || "";
+    // የተጠቃሚውን መረጃ ከዳታቤዝ ማምጣት
+    const user = await env.DB.prepare("SELECT deposit_method, phone FROM users WHERE user_id = ?").bind(userId).first();
 
-    // መረጃ ከዳታቤዝ ማምጣት
-    const user = await env.DB.prepare("SELECT deposit_method, phone FROM users WHERE user_id = ?")
-      .bind(userId)
-      .first();
+    if (!user && userId !== ADMIN_ID) return;
 
-    // --- ሀ. ለአድሚን (Withdrawal Approval) ---
-    // ሁለት አማራጭ አለው፡ 1. በዳታቤዝ ስቴት ወይም 2. በካፕሽን 'send' ብሎ ሲጽፍ
-    if (userId === ADMIN_ID) {
-      
-      // አማራጭ 1: በካፕሽን ከሆነ (ለምሳሌ፡ send 123456 500)
-      if (caption.startsWith('send ')) {
-        const parts = caption.split(' ');
-        const targetUserId = parts[1];
-        const amount = parseInt(parts[2]);
+    // -------------------------------------------------------
+    // ሀ. ለአድሚን፦ የዊዝድሮው (Withdrawal) ማረጋገጫ ፎቶ ሲልክ
+    // -------------------------------------------------------
+    if (userId === ADMIN_ID && user?.deposit_method?.startsWith('ADMIN_WAITING_PROOF_')) {
+      const parts = user.deposit_method.split('_');
+      const targetUserId = parts[3];
+      const amount = parseInt(parts[4]);
 
-        if (targetUserId && !isNaN(amount)) {
-          await ctx.telegram.sendPhoto(targetUserId, photoId, {
-            caption: `✅ <b>Withdrawal Successful!</b>\n━━━━━━━━━━━━━━━━━━\nYour withdrawal of <b>${amount} ETB</b> has been paid.\n\n<i>Thank you for using our bot!</i>`,
-            parse_mode: 'HTML'
-          });
-          await env.DB.prepare("UPDATE users SET balance = balance - ? WHERE user_id = ?").bind(amount, targetUserId).run();
-          return ctx.reply(`✅ Success! Receipt sent and ${amount} ETB deducted from User ${targetUserId}`);
-        }
-      }
-
-      // አማራጭ 2: በዳታቤዝ ስቴት (ADMIN_WAITING_PROOF_...)
-      if (user?.deposit_method?.startsWith('ADMIN_WAITING_PROOF_')) {
-        const parts = user.deposit_method.split('_');
-        const targetId = parts[3];
-        const amt = parts[4];
-
-        await ctx.telegram.sendPhoto(targetId, photoId, {
-          caption: `✅ <b>Withdrawal Completed!</b>\n━━━━━━━━━━━━━━━━━━\nYour request for <b>${amt} ETB</b> is paid.`,
-          parse_mode: 'HTML'
-        });
-        await env.DB.prepare("UPDATE users SET balance = balance - ?, deposit_method = NULL WHERE user_id = ?").bind(amt, targetId).run();
-        // የአድሚኑን ስቴት ማጽዳት
-        await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(ADMIN_ID).run();
-        return ctx.reply("✅ Withdrawal proof sent and balance updated.");
-      }
-    }
-
-    // --- ለ. ለተጠቃሚ (Deposit Proof) ---
-    if (user?.deposit_method === 'WAITING_FOR_PHOTO' || user?.deposit_method === 'WAITING_DEPOSIT_PHOTO') {
-      const firstName = ctx.from.first_name;
-      const phone = user.phone || "Not Shared";
-
-      // ለአድሚን መላክ
-      await ctx.telegram.sendPhoto(ADMIN_ID, photoId, {
-        caption: `<b>💰 NEW DEPOSIT PROOF</b>\n━━━━━━━━━━━━━━━━━━\n👤 <b>From:</b> ${firstName}\n🆔 <b>ID:</b> <code>${userId}</code>\n📞 <b>Phone:</b> ${phone}\n━━━━━━━━━━━━━━━━━━`,
-        parse_mode: 'HTML',
-        ...Markup.inlineKeyboard([
-          [Markup.button.callback('✅ Approve 50', `approve_${userId}_50`), Markup.button.callback('✅ Approve 100', `approve_${userId}_100`)],
-          [Markup.button.callback('➕ Custom Amount', `custom_approve_${userId}`)],
-          [Markup.button.callback('❌ Reject', `reject_${userId}`)]
-        ])
+      // ለተጠቃሚው ደረሰኙን መላክ
+      await ctx.telegram.sendPhoto(targetUserId, photoId, {
+        caption: `✅ <b>Withdrawal Successful!</b>\n━━━━━━━━━━━━━━━━━━\nYour withdrawal request of <b>${amount} ETB</b> has been completed and paid.\n\n<i>Thank you for using our bot!</i>`,
+        parse_mode: 'HTML'
       });
 
-      // የተጠቃሚውን ስቴት ማጽዳት
-      await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(userId).run();
-      return ctx.reply("✅ <b>Success!</b>\nYour screenshot has been sent to the Admin for verification.");
+      // የተጠቃሚውን ባላንስ መቀነስ እና የአድሚኑን ስቴት (deposit_method) ማጽዳት
+      await env.DB.prepare("UPDATE users SET balance = balance - ? WHERE user_id = ?").bind(amount, targetUserId).run();
+      await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(ADMIN_ID).run();
+
+      return ctx.reply(`✅ <b>Success!</b>\nReceipt sent to User <code>${targetUserId}</code> and <b>${amount} ETB</b> deducted.`);
     }
 
-    // መመሪያ ሳይሰጠው ዝም ብሎ ፎቶ ለላከ ተጠቃሚ
+    // -------------------------------------------------------
+    // ለ. ለተጠቃሚ፦ የዲፖዚት (Deposit) ፎቶ ሲልክ
+    // -------------------------------------------------------
+    if (user?.deposit_method === 'WAITING_FOR_PHOTO' || user?.deposit_method === 'WAITING_DEPOSIT_PHOTO') {
+      const firstName = ctx.from.first_name;
+      const username = ctx.from.username ? `@${ctx.from.username}` : "No Username";
+      const phone = user.phone || "Not Shared";
+
+      // 1. ለተጠቃሚው ማረጋገጫ መስጠት
+      await ctx.reply("✅ <b>Success!</b>\nYour screenshot has been sent to the Admin for verification. You will be notified once approved.", { parse_mode: 'HTML' });
+
+      // 2. የተጠቃሚውን ሁኔታ ማጽዳት (ደግሞ እንዳይልክ)
+      await env.DB.prepare("UPDATE users SET deposit_method = NULL WHERE user_id = ?").bind(userId).run();
+
+      // 3. ለአድሚን መረጃውን እና ፎቶውን መላክ (ከነ ቁልፎቹ)
+      const adminDepositCaption = `<b>💰 NEW DEPOSIT PROOF</b>\n━━━━━━━━━━━━━━━━━━\n👤 <b>From:</b> ${firstName}\n🆔 <b>ID:</b> <code>${userId}</code>\n📞 <b>Phone:</b> <code>${phone}</code>\n🔗 <b>Username:</b> ${username}\n━━━━━━━━━━━━━━━━━━\n<b>Select amount to credit:</b>`;
+
+      const adminDepositKeyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('✅ Approve 50', `approve_${userId}_50`), Markup.button.callback('✅ Approve 100', `approve_${userId}_100`)],
+        [Markup.button.callback('✅ Approve 500', `approve_${userId}_500`)],
+        [Markup.button.callback('➕ Custom Amount', `custom_approve_${userId}`)],
+        [Markup.button.callback('❌ Reject', `reject_${userId}`)]
+      ]);
+
+      return ctx.telegram.sendPhoto(ADMIN_ID, photoId, {
+        caption: adminDepositCaption,
+        parse_mode: 'HTML',
+        ...adminDepositKeyboard
+      });
+    }
+
+    // መመሪያ ሳይሰጠው ዝም ብሎ ፎቶ ለሚልክ ተጠቃሚ
     if (userId !== ADMIN_ID) {
-      return ctx.reply("ℹ️ Please use the <b>📥 Deposit</b> or <b>💸 Withdraw</b> buttons before sending a photo.");
+      return ctx.reply("ℹ️ Please click the <b>📥 Deposit</b> button before sending a screenshot.", { parse_mode: 'HTML' });
     }
 
   } catch (error) {
-    console.error("Photo Handler Error:", error);
-    return ctx.reply("⚠️ An error occurred while processing the photo.");
+    console.error("Photo handler error:", error);
+    return ctx.reply("⚠️ Error processing photo. Please try again.");
   }
 });
-          
+  
 
 
            
