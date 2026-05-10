@@ -5,7 +5,7 @@ compatibility_flags = [ "nodejs_compat" ]
 
 [vars]
 # BOT_TOKEN በ Dashboard ላይ ካልሞላህ እዚህ ጋር መጨመር ትችላለህ
- BOT_TOKEN = "8306938740:AAHHZYIiXXnrtNu71H0IcqiA99sqhz0evEE"
+ BOT_TOKEN = "8532916127:AAHm8IcFOUt77jyS6gjhtf_Uz0y1xnlwBnk"
 [[d1_databases]]
 binding = "DB"  # በኮዱ ውስጥ env.DB ያልነውን ያመለክታል
 database_name = "lottery_db"
