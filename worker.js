@@ -102,7 +102,7 @@ bot.on('contact', async (ctx) => {
     }
 
     // --- SECURITY & UX CHECK ---
-    const member = await ctx.telegram.getChatMember("@ethuoo", userId).catch(() => ({ status: 'left' }));
+    const member = await ctx.telegram.getChatMember("@luckyluckypersons", userId).catch(() => ({ status: 'left' }));
     const isMember = ['member', 'administrator', 'creator'].includes(member.status);
 
     if (isMember) {
@@ -821,6 +821,78 @@ Invite your friends and get <b>2.00 ETB</b> for every new user!
     parse_mode: 'HTML',
     ...shareKeyboard 
   });
+});
+
+   bot.action('refresh_invites', async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    const botUsername = ctx.botInfo.username;
+    const user = await env.DB.prepare("SELECT invite_count FROM users WHERE user_id = ?").bind(userId).first();
+
+    const invites = user?.invite_count || 0;
+    const earnings = invites * 2; 
+    const inviteLink = `https://t.me/${botUsername}?start=ref_${userId}`;
+
+    const inviteMessage = `
+<b>🎁 INVITE & EARN (UPDATED)</b>
+━━━━━━━━━━━━━━━━━━━━
+Invite your friends and get <b>2.00 ETB</b> for every new user!
+
+<b>📈 YOUR INVITATION STATS</b>
+👥 Total Invited: <code>${invites} Users</code>
+💰 Total Earned: <code>${earnings} ETB</code>
+
+<b>🔗 YOUR PERSONAL LINK</b>
+<code>${inviteLink}</code>
+━━━━━━━━━━━━━━━━━━━━
+<i>Last updated: ${new Date().toLocaleTimeString()}</i>`;
+
+    const shareKeyboard = Markup.inlineKeyboard([
+      [Markup.button.url('📤 Share Referral Link', `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent("Join now and start winning! 🎁✨")}`)],
+      [Markup.button.callback('🔄 Refresh Stats', 'refresh_invites')]
+    ]);
+
+    await ctx.answerCbQuery("Invites Updated! 👥");
+    return ctx.editMessageText(inviteMessage, { parse_mode: 'HTML', ...shareKeyboard });
+  } catch (e) {
+    return ctx.answerCbQuery("Error updating invites.");
+  }
+});
+
+    bot.action('refresh_wallet', async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    const user = await env.DB.prepare("SELECT balance, invite_count, payout_account FROM users WHERE user_id = ?").bind(userId).first();
+
+    const balance = user?.balance || 0;
+    const invites = user?.invite_count || 0;
+    const payoutAcc = user?.payout_account || "None";
+    const botUsername = ctx.botInfo.username;
+    const inviteLink = `https://t.me/${botUsername}?start=ref_${userId}`;
+
+    const updatedMessage = `
+<b>👛 YOUR WALLET & REWARDS (UPDATED)</b>
+━━━━━━━━━━━━━━━━━━
+💰 <b>Current Balance:</b> <code>${balance} ETB</code>
+👥 <b>Total Referrals:</b> <code>${invites} Users</code>
+🏦 <b>Payment Info:</b> <code>${payoutAcc}</code>
+━━━━━━━━━━━━━━━━━━
+🎁 <b>Referral Bonus:</b> Get <b>2.00 ETB</b> for every friend!
+🔗 <b>Invite Link:</b> <code>${inviteLink}</code>
+━━━━━━━━━━━━━━━━━━
+<i>Last updated: ${new Date().toLocaleTimeString()}</i>`;
+
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('🎟 Buy Ticket (10 ETB)', 'buy_with_wallet')],
+      [Markup.button.callback('💸 Withdraw', 'request_withdraw'), Markup.button.callback('📥 Deposit', 'show_deposit_info')],
+      [Markup.button.callback('🔄 Refresh Stats', 'refresh_wallet')]
+    ]);
+
+    await ctx.answerCbQuery("Stats Updated! ✅");
+    return ctx.editMessageText(updatedMessage, { parse_mode: 'HTML', ...keyboard });
+  } catch (e) {
+    return ctx.answerCbQuery("Error updating stats.");
+  }
 });
     
     
