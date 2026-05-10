@@ -5,10 +5,9 @@ export default {
     if (!env.BOT_TOKEN) return new Response("BOT_TOKEN missing");
     
     const bot = new Telegraf(env.BOT_TOKEN);
-    const CHANNEL_ID = "@ethuoo"; // ያንተ ቻናል
-    const ADMIN_ID = 7471102761;
-    const ADMIN_GROUP_ID = -1003902315085
-    
+    const CHANNEL_ID = "@luckyluckypersons"; // ያንተ ቻናል
+    const ADMIN_ID = 1417184246;
+
     // --- 1. Keyboards ---
 const mainKeyboard = Markup.keyboard([
   ['🎟 New Ticket'],
@@ -35,7 +34,7 @@ bot.start(async (ctx) => {
     // 2. ተጠቃሚው ቀድሞ ተመዝግቦ ከሆነ
     if (user && user.phone) {
       // ቻናሉ ላይ መኖሩን ቼክ እናድርግ
-      const member = await ctx.telegram.getChatMember("@ethuoo", userId).catch(() => ({ status: 'left' }));
+      const member = await ctx.telegram.getChatMember("@luckyluckypersons", userId).catch(() => ({ status: 'left' }));
       const isMember = ['member', 'administrator', 'creator'].includes(member.status);
 
       if (isMember) {
@@ -47,7 +46,7 @@ bot.start(async (ctx) => {
         return ctx.reply("👋 <b>Welcome Back!</b>\nPlease <b>re-join</b> our channel to access the bot features.", {
           parse_mode: 'HTML',
           ...Markup.inlineKeyboard([
-            [Markup.button.url('📢 Join Channel', 'https://t.me/SmartX_Ethio')],
+            [Markup.button.url('📢 Join Channel', 'https://t.me/luckyluckypersons')],
             [Markup.button.callback('✅ I Have Joined', 'check_join')]
           ])
         });
@@ -70,7 +69,7 @@ bot.start(async (ctx) => {
 ━━━━━━━━━━━━━━━━━━
 Welcome! To start winning, please complete these steps:
 
-1️⃣ <b>Join:</b> @SmartX_Ethio
+1️⃣ <b>Join:</b> @luckyluckypersons
 2️⃣ <b>Verify:</b> Share your contact below.
 ━━━━━━━━━━━━━━━━━━`;
 
@@ -121,7 +120,7 @@ Final step: Join our channel to unlock the <b>Main Menu</b> and see results.
     return ctx.reply(completionMsg, {
       parse_mode: 'HTML',
       ...Markup.inlineKeyboard([
-        [Markup.button.url('📢 Join Official Channel', 'https://t.me/ethuoo')],
+        [Markup.button.url('📢 Join Official Channel', 'https://t.me/luckyluckypersons')],
         [Markup.button.callback('✅ I Have Joined', 'check_join')]
       ])
     });
@@ -250,7 +249,7 @@ bot.action('admin_draw_winners', async (ctx) => {
   bot.action('check_join', async (ctx) => {
   try {
     // ቴሌግራምን ተጠቃሚው አባል መሆኑን እንጠይቃለን
-    const member = await ctx.telegram.getChatMember("@ethuoo", ctx.from.id);
+    const member = await ctx.telegram.getChatMember("@luckyluckypersons", ctx.from.id);
     const isMember = ['member', 'administrator', 'creator'].includes(member.status);
 
     if (isMember) {
