@@ -1447,20 +1447,42 @@ bot.on('text', async (ctx) => {
   const text = ctx.message.text;
   const userId = ctx.from.id;
 
-  // አድሚኑ 'add userId amount' ብሎ ሲጽፍ
-  if (userId === ADMIN_ID && text.startsWith('add ')) {
-    const parts = text.split(' ');
-    if (parts.length === 3) {
-      const targetId = parts[1];
-      const amount = parseInt(parts[2]);
-      if (!isNaN(amount)) {
-        await env.DB.prepare("UPDATE users SET balance = balance + ? WHERE user_id = ?").bind(amount, targetId).run();
-        await ctx.telegram.sendMessage(targetId, `✅ <b>Deposit Approved!</b>\nYour wallet has been credited with <b>${amount} ETB</b>.`, { parse_mode: 'HTML' });
-        return ctx.reply(`✅ Successfully added ${amount} ETB to User ${targetId}`);
+  // 1. ለአድሚን ብቻ የተፈቀደ የ Custom Deposit logic
+  if (userId === ADMIN_ID) {
+    
+    // Pattern: "add [userId] [amount]" (ለምሳሌ: add 1234567 500)
+    const addMatch = text.match(/^add\s+(\d+)\s+(\d+)$/i);
+    
+    if (addMatch) {
+      const targetId = addMatch[1];
+      const amount = parseInt(addMatch[2]);
+
+      try {
+        // መረጃውን ዳታቤዝ ላይ ማደስ
+        const result = await env.DB.prepare("UPDATE users SET balance = balance + ? WHERE user_id = ?")
+          .bind(amount, targetId)
+          .run();
+
+        if (result.meta.changes > 0) {
+          // ለተጠቃሚው ማሳወቂያ መላክ
+          await ctx.telegram.sendMessage(targetId, 
+            `✅ <b>Deposit Approved!</b>\n━━━━━━━━━━━━━━━━━━\nYour wallet has been credited with <b>${amount} ETB</b>.\n<i>Thank you for using SmartX!</i>`, 
+            { parse_mode: 'HTML' }
+          ).catch(() => console.log("User blocked the bot"));
+
+          return ctx.reply(`✅ <b>Success!</b>\nAdded <b>${amount} ETB</b> to User ID: <code>${targetId}</code>`, { parse_mode: 'HTML' });
+        } else {
+          return ctx.reply("❌ <b>Error:</b> User ID አልተገኘም ወይም አልተመዘገበም።");
+        }
+      } catch (e) {
+        return ctx.reply(`⚠️ <b>Database Error:</b> ${e.message}`);
       }
     }
   }
+
+  // ሌሎች መደበኛ የጽሁፍ መልእክቶች ካሉ እዚህ መቀጠል ይችላሉ...
 });
+    
 
 // --- 6. አድሚኑ Confirm Paid ሲጫን (ለዊዝድሮው) ---
 bot.action(/^confirm_paid_(\d+)_(\d+)$/, async (ctx) => {
