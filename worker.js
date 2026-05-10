@@ -6,7 +6,7 @@ export default {
     
     const bot = new Telegraf(env.BOT_TOKEN);
     const CHANNEL_ID = "@luckyluckypersons"; // ያንተ ቻናል
-    const ADMIN_ID = 7471102761;
+    const ADMIN_ID = 1417184246;
 
     // --- 1. Keyboards ---
 const mainKeyboard = Markup.keyboard([
